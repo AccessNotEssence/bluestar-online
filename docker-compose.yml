@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: bluestar_db
+    environment:
+      POSTGRES_DB: bluestar_online
+      POSTGRES_USER: bluestar_admin
+      POSTGRES_PASSWORD: starship_secure_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./server/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql
+
+  server:
+    build: ./server
+    container_name: bluestar_server
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgres://bluestar_admin:starship_secure_pass@postgres:5432/bluestar_online
+      JWT_SECRET: bluestar_jwt_secret_key_2026
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    depends_on:
+      - postgres
+
+  client:
+    build: ./client
+    container_name: bluestar_client
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_SERVER_URL: http://localhost:3000
+
+volumes:
+  pgdata:
