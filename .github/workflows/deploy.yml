@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 18
 
-      - name: Build Client App
+      - name: Install and Build Client
         run: |
           cd client
           npm install
@@ -36,7 +36,7 @@ jobs:
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./client/dist
+          path: client/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
