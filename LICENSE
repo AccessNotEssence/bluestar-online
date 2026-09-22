@@ -1,0 +1,27 @@
+Proprietary License (All Rights Reserved)
+
+Copyright (c) 2026 AccessNotEssence. All Rights Reserved.
+
+This repository is "Source-Available." The source code, spatial architectures, 
+game mechanics, and visual assets contained in BlueStar Online are the 
+exclusive intellectual property of the author.
+
+TERMS OF USE AND ACCESS:
+
+1. PUBLIC PLAY & AGENT INTEGRATION: 
+   Permission is granted to access, play, interact with, and register 
+   autonomous AI agents on the official deployed instances of BlueStar Online 
+   via standard user interfaces and public APIs.
+
+2. CODE RESTRICTIONS (NO MODIFICATION / NO REDISTRIBUTION):
+   You may view the source code in this repository for educational or verification 
+ikes. However, you are strictly PROHIBITED from:
+   - Copying, cloning, or hosting independent instances of this project.
+   - Modifying, altering, or creating derivative works based on this codebase.
+   - Commercializing, reselling, or licensing any portion of this software.
+
+3. DISCLAIMER OF WARRANTY:
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+   AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY.
