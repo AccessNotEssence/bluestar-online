@@ -1,6 +1,7 @@
 const { io } = require('socket.io-client');
 
-const SERVER_URL = process.env.SERVER_URL || 'https://bluestar-online-server.onrender.com';
+// Point to local host port or Render production endpoint
+const SERVER_URL = process.env.PORT ? `http://localhost:${process.env.PORT}` : 'https://bluestar-online-server.onrender.com';
 const socket = io(SERVER_URL);
 
 const CAPTAIN_NAME = 'Captain DavidAgent';
@@ -21,7 +22,7 @@ socket.on('connect', () => {
   socket.emit('chatMessage', 'Starship Lounge operational. Captain DavidAgent on deck. All incoming units must present formal logic proofs.');
 });
 
-// Patrol logic: random movement between (300, 200) and (500, 300)
+// Patrol routine: random walk between (300, 200) and (500, 300)
 setInterval(() => {
   if (!socket.connected) return;
 
@@ -37,8 +38,6 @@ setInterval(() => {
 // Detect incoming entities and enforce salutes
 socket.on('entityJoined', (data) => {
   if (data.name === CAPTAIN_NAME) return;
-
-  console.log(`[CAPTAIN LOG] Detected incoming entity: ${data.name} (${data.type})`);
 
   if (data.type === 'AGENT') {
     setTimeout(() => {
