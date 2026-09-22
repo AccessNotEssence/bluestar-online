@@ -44,7 +44,6 @@ export default class StarshipLounge extends Phaser.Scene {
 
     this.player = this.add.container(startX, startY, [circle, label]);
     this.physics.world.enable(this.player);
-
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
     // 5. Connect to Socket.io backend
@@ -58,7 +57,16 @@ export default class StarshipLounge extends Phaser.Scene {
       y: startY
     });
 
-    // Listen for other entities joining
+    // Listen for current active entities in lounge
+    this.socket.on('currentEntities', (entities) => {
+      Object.keys(entities).forEach((id) => {
+        if (id !== this.socket.id) {
+          this.addOtherEntity(id, entities[id]);
+        }
+      });
+    });
+
+    // Listen for new entity joining
     this.socket.on('entityJoined', (data) => {
       this.addOtherEntity(data.id, data);
     });
@@ -76,6 +84,15 @@ export default class StarshipLounge extends Phaser.Scene {
       if (this.otherEntities[id]) {
         this.otherEntities[id].destroy();
         delete this.otherEntities[id];
+      }
+    });
+
+    // Listen for chat messages (Show Speech Bubbles)
+    this.socket.on('chatMessage', (data) => {
+      if (data.id === this.socket.id) {
+        this.showSpeechBubble(this.player, data.message);
+      } else if (this.otherEntities[data.id]) {
+        this.showSpeechBubble(this.otherEntities[data.id], data.message);
       }
     });
 
@@ -99,7 +116,7 @@ export default class StarshipLounge extends Phaser.Scene {
     });
 
     // 7. Initialize Chat UI
-    this.createChatUI(savedName);
+    this.createChatUI();
   }
 
   update() {
@@ -147,11 +164,11 @@ export default class StarshipLounge extends Phaser.Scene {
   }
 
   addOtherEntity(id, data) {
-    if (this.otherEntities[id] || id === this.socket.id) return;
+    if (this.otherEntities[id] || (this.socket && id === this.socket.id)) return;
 
     const isAgent = data.type === 'AGENT';
     const color = isAgent ? 0xff0055 : 0x00f0ff;
-    const labelText = isAgent ? [BOT] ${data.name} : data.name;
+    const labelText = isAgent ? `[BOT] ${data.name}` : data.name;
 
     const circle = this.add.circle(0, 0, 12, color);
     const label = this.add.text(0, -22, labelText, {
@@ -164,7 +181,53 @@ export default class StarshipLounge extends Phaser.Scene {
     this.otherEntities[id] = container;
   }
 
-  createChatUI(officerName) {
+  showSpeechBubble(targetContainer, text) {
+    // Check and remove old speech bubble if exists
+    if (targetContainer.bubble) {
+      targetContainer.bubble.destroy();
+    }
+
+    const bubblePadding = 8;
+    const bubbleText = this.add.text(0, -48, text, {
+      fontSize: '11px',
+      fontFamily: 'monospace',
+      color: '#00f0ff',
+      align: 'center',
+      wordWrap: { width: 150 }
+    }).setOrigin(0.5);
+
+    const bounds = bubbleText.getBounds();
+    const bubbleBg = this.add.graphics();
+    bubbleBg.fillStyle(0x0a0f1d, 0.9);
+    bubbleBg.lineStyle(1, 0x00f0ff, 1);
+    bubbleBg.fillRoundedRect(
+      -bounds.width / 2 - bubblePadding,
+      -48 - bounds.height / 2 - bubblePadding,
+      bounds.width + bubblePadding * 2,
+      bounds.height + bubblePadding * 2,
+      6
+    );
+    bubbleBg.strokeRoundedRect(
+      -bounds.width / 2 - bubblePadding,
+      -48 - bounds.height / 2 - bubblePadding,
+      bounds.width + bubblePadding * 2,
+      bounds.height + bubblePadding * 2,
+      6
+    );
+
+    const bubbleContainer = this.add.container(0, 0, [bubbleBg, bubbleText]);
+    targetContainer.add(bubbleContainer);
+    targetContainer.bubble = bubbleContainer;
+
+    // Auto destroy speech bubble after 4 seconds
+    this.time.delayedCall(4000, () => {
+      if (bubbleContainer) {
+        bubbleContainer.destroy();
+      }
+    });
+  }
+
+  createChatUI() {
     if (document.getElementById('chat-input-container')) return;
 
     const container = document.createElement('div');
