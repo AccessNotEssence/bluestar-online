@@ -1,170 +1,152 @@
 import Phaser from 'phaser';
-import { io } from 'socket.io-client';
-import BulletinFeed from '../components/BulletinFeed.js';
-import SpatialAudio from '../components/SpatialAudio.js';
 
 export default class StarshipLounge extends Phaser.Scene {
-    constructor() {
-        super({ key: 'StarshipLounge' });
-        this.otherEntities = {};
+  constructor() {
+    super('StarshipLounge');
+    this.player = null;
+    this.cursors = null;
+    this.wasd = null;
+    this.targetPosition = null; // Store touch/pointer target position for mobile devices
+    this.otherEntities = {};
+  }
+
+  create() {
+    // 1. Draw geometric grid background
+    this.add.grid(0, 0, 2000, 2000, 40, 40, 0x0a0f1d, 1, 0x1a2638, 0.5);
+
+    // 2. Create central starship bulletin terminal
+    const terminal = this.add.rectangle(400, 250, 100, 100, 0x3b82f6);
+    this.add.text(400, 250, 'BULLETIN\nTERMINAL', {
+      fontSize: '10px',
+      fontFamily: 'monospace',
+      align: 'center',
+      color: '#ffffff'
+    }).setOrigin(0.5);
+
+    // 3. Retrieve local officer name, or generate a persistent Officer ID if none exists
+    let savedName = localStorage.getItem('bluestar_officer_name');
+    if (!savedName) {
+      savedName = `Officer_${Math.floor(1000 + Math.random() * 9000)}`;
+      localStorage.setItem('bluestar_officer_name', savedName);
     }
 
-    init(data) {
-        this.userProfile = data.userProfile;
+    // 4. Create player entity circle and label
+    const startX = 400;
+    const startY = 320;
+    const circle = this.add.circle(0, 0, 12, 0x00f0ff);
+    const label = this.add.text(0, -22, savedName, {
+      fontSize: '12px',
+      fontFamily: 'monospace',
+      color: '#00f0ff'
+    }).setOrigin(0.5);
+
+    this.player = this.add.container(startX, startY, [circle, label]);
+    this.physics.world.enable(this.player);
+
+    // Make camera follow player entity
+    this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
+
+    // 5. Bind keyboard inputs (Desktop)
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.wasd = this.input.keyboard.addKeys({
+      up: Phaser.Input.Keyboard.KeyCodes.W,
+      down: Phaser.Input.Keyboard.KeyCodes.S,
+      left: Phaser.Input.Keyboard.KeyCodes.A,
+      right: Phaser.Input.Keyboard.KeyCodes.D
+    });
+
+    // 6. Bind touch & pointer drag events (Mobile)
+    this.input.on('pointerdown', (pointer) => {
+      this.targetPosition = { x: pointer.worldX, y: pointer.worldY };
+    });
+
+    this.input.on('pointermove', (pointer) => {
+      if (pointer.isDown) {
+        this.targetPosition = { x: pointer.worldX, y: pointer.worldY };
+      }
+    });
+
+    // 7. Initialize overlay chat UI
+    this.createChatUI(savedName);
+  }
+
+  update() {
+    if (!this.player) return;
+
+    const speed = 200;
+    let vx = 0;
+    let vy = 0;
+
+    // Process desktop keyboard movement
+    if (this.cursors.left.isDown || this.wasd.left.isDown) vx = -speed;
+    else if (this.cursors.right.isDown || this.wasd.right.isDown) vx = speed;
+
+    if (this.cursors.up.isDown || this.wasd.up.isDown) vy = -speed;
+    else if (this.cursors.down.isDown || this.wasd.down.isDown) vy = speed;
+
+    if (vx !== 0 || vy !== 0) {
+      // Clear touch target position when using keyboard
+      this.targetPosition = null;
+      this.player.body.setVelocity(vx, vy);
+    } else if (this.targetPosition) {
+      // Mobile touch navigation logic: move towards tapped/dragged coordinates
+      const distance = Phaser.Math.Distance.Between(
+        this.player.x, this.player.y,
+        this.targetPosition.x, this.targetPosition.y
+      );
+
+      if (distance > 5) {
+        this.physics.moveTo(this.player, this.targetPosition.x, this.targetPosition.y, speed);
+      } else {
+        this.player.body.setVelocity(0, 0);
+        this.targetPosition = null;
+      }
+    } else {
+      this.player.body.setVelocity(0, 0);
     }
+  }
 
-    preload() {
-        // Placeholder procedurally generated textures
-        const graphics = this.make.graphics({ x: 0, y: 0, add: false });
+  createChatUI(officerName) {
+    if (document.getElementById('chat-input-container')) return;
 
-        // Floor tile
-        graphics.fillStyle(0x111827);
-        graphics.fillRect(0, 0, 32, 32);
-        graphics.lineStyle(1, 0x1f2937);
-        graphics.strokeRect(0, 0, 32, 32);
-        graphics.generateTexture('deck_tile', 32, 32);
-        graphics.clear();
+    const container = document.createElement('div');
+    container.id = 'chat-input-container';
+    container.style.cssText = `
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      display: flex;
+      gap: 10px;
+      background: rgba(10, 15, 29, 0.85);
+      padding: 8px 12px;
+      border: 1px solid #00f0ff;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    `;
 
-        // Human Sprite Avatar (Blue Indicator)
-        graphics.fillStyle(0x00f0ff);
-        graphics.fillCircle(16, 16, 14);
-        graphics.generateTexture('human_astronaut', 32, 32);
-        graphics.clear();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Transmit signal... (Press Enter)';
+    input.style.cssText = `
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #00f0ff;
+      font-family: monospace;
+      font-size: 14px;
+      width: 240px;
+    `;
 
-        // Robot Sprite Avatar (Red/Pink Unit)
-        graphics.fillStyle(0xff0055);
-        graphics.fillRect(4, 4, 24, 24);
-        graphics.generateTexture('robot_unit', 32, 32);
-        graphics.clear();
-    }
+    container.appendChild(input);
+    document.body.appendChild(container);
 
-    create() {
-        const serverUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:3000';
-        this.socket = io(serverUrl);
-
-        // Render Lounge Floor Grid
-        for (let x = 0; x < 2000; x += 32) {
-            for (let y = 0; y < 2000; y += 32) {
-                this.add.image(x, y, 'deck_tile').setOrigin(0);
-            }
-        }
-
-        // Add Bulletin Terminal Zone in Lounge Center
-        this.bulletinTerminal = this.add.rectangle(1000, 1000, 96, 96, 0x3b82f6);
-        this.add.text(1000, 1000, 'BULLETIN\nTERMINAL', {
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            color: '#ffffff',
-            align: 'center'
-        }).setOrigin(0.5);
-
-        this.physics.add.existing(this.bulletinTerminal, true);
-
-        // Local Player Avatar Initializer
-        this.player = this.physics.add.sprite(1000, 1100, this.userProfile.avatarSprite);
-        this.player.setCollideWorldBounds(true);
-        this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
-
-        this.playerLabel = this.add.text(1000, 1070, this.userProfile.displayName, {
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            color: '#00f0ff'
-        }).setOrigin(0.5);
-
-        this.cursors = this.input.keyboard.createCursorKeys();
-
-        // Initialize Components
-        this.bulletinFeed = new BulletinFeed(serverUrl);
-        this.spatialAudio = new SpatialAudio(this.socket);
-
-        // Setup Socket Network Sync
-        this.setupSocketEvents();
-
-        // Join Starship Room
-        this.socket.emit('join_starship', {
-            id: this.userProfile.id,
-            displayName: this.userProfile.displayName,
-            type: this.userProfile.type,
-            avatarSprite: this.userProfile.avatarSprite,
-            x: this.player.x,
-            y: this.player.y
-        });
-    }
-
-    update() {
-        const speed = 200;
-        let vx = 0;
-        let vy = 0;
-
-        if (this.cursors.left.isDown) vx = -speed;
-        else if (this.cursors.right.isDown) vx = speed;
-
-        if (this.cursors.up.isDown) vy = -speed;
-        else if (this.cursors.down.isDown) vy = speed;
-
-        this.player.setVelocity(vx, vy);
-
-        this.playerLabel.setPosition(this.player.x, this.player.y - 25);
-
-        if (vx !== 0 || vy !== 0) {
-            this.socket.emit('move', { x: this.player.x, y: this.player.y });
-            this.spatialAudio.updatePositions(this.player.x, this.player.y, this.otherEntities);
-        }
-
-        // Check proximity to Bulletin Terminal
-        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.bulletinTerminal.x, this.bulletinTerminal.y);
-        if (dist < 80 && !this.bulletinFeed.isOpen) {
-            this.bulletinFeed.render();
-        } else if (dist >= 80 && this.bulletinFeed.isOpen) {
-            this.bulletinFeed.close();
-        }
-    }
-
-    setupSocketEvents() {
-        this.socket.on('current_entities', (entities) => {
-            Object.keys(entities).forEach((socketId) => {
-                if (socketId !== this.socket.id) {
-                    this.addOtherEntity(socketId, entities[socketId]);
-                }
-            });
-        });
-
-        this.socket.on('entity_joined', (data) => {
-            this.addOtherEntity(data.socketId, data);
-        });
-
-        this.socket.on('entity_moved', (data) => {
-            if (this.otherEntities[data.socketId]) {
-                const target = this.otherEntities[data.socketId];
-                target.sprite.setPosition(data.x, data.y);
-                target.label.setPosition(data.x, data.y - 25);
-            }
-        });
-
-        this.socket.on('entity_left', (socketId) => {
-            if (this.otherEntities[socketId]) {
-                this.otherEntities[socketId].sprite.destroy();
-                this.otherEntities[socketId].label.destroy();
-                delete this.otherEntities[socketId];
-            }
-        });
-    }
-
-    addOtherEntity(socketId, data) {
-        if (this.otherEntities[socketId]) return;
-
-        const spriteKey = data.type === 'AGENT' ? 'robot_unit' : 'human_astronaut';
-        const sprite = this.add.sprite(data.x, data.y, spriteKey);
-        
-        const labelColor = data.type === 'AGENT' ? '#ff0055' : '#00f0ff';
-        const labelText = data.type === 'AGENT' ? `[BOT] ${data.name}`: data.name;
-
-        const label = this.add.text(data.x, data.y - 25, labelText, {
-            fontSize: '12px',
-            fontFamily: 'monospace',
-            color: labelColor
-        }).setOrigin(0.5);
-
-        this.otherEntities[socketId] = { sprite, label, ...data };
-    }
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && input.value.trim() !== '') {
+        alert(`[${officerName} Signal Transmission]: ${input.value}`);
+        input.value = '';
+      }
+    });
+  }
 }
