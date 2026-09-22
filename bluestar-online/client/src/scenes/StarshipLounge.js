@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { io } from 'socket.io-client';
 
 export default class StarshipLounge extends Phaser.Scene {
   constructor() {
@@ -6,7 +7,8 @@ export default class StarshipLounge extends Phaser.Scene {
     this.player = null;
     this.cursors = null;
     this.wasd = null;
-    this.targetPosition = null; // Store touch/pointer target position for mobile devices
+    this.targetPosition = null;
+    this.socket = null;
     this.otherEntities = {};
   }
 
@@ -23,7 +25,7 @@ export default class StarshipLounge extends Phaser.Scene {
       color: '#ffffff'
     }).setOrigin(0.5);
 
-    // 3. Retrieve local officer name, or generate a persistent Officer ID if none exists
+    // 3. Retrieve local officer name or generate persistent Officer ID
     let savedName = localStorage.getItem('bluestar_officer_name');
     if (!savedName) {
       savedName = `Officer_${Math.floor(1000 + Math.random() * 9000)}`;
@@ -43,10 +45,41 @@ export default class StarshipLounge extends Phaser.Scene {
     this.player = this.add.container(startX, startY, [circle, label]);
     this.physics.world.enable(this.player);
 
-    // Make camera follow player entity
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    // 5. Bind keyboard inputs (Desktop)
+    // 5. Connect to Socket.io backend
+    const serverUrl = import.meta.env.VITE_SERVER_URL || 'https://bluestar-online-server.onrender.com';
+    this.socket = io(serverUrl);
+
+    // Register presence with server
+    this.socket.emit('joinLounge', {
+      name: savedName,
+      x: startX,
+      y: startY
+    });
+
+    // Listen for other entities joining
+    this.socket.on('entityJoined', (data) => {
+      this.addOtherEntity(data.id, data);
+    });
+
+    // Listen for entity movement updates
+    this.socket.on('entityMoved', (data) => {
+      if (this.otherEntities[data.id]) {
+        this.otherEntities[data.id].x = data.x;
+        this.otherEntities[data.id].y = data.y;
+      }
+    });
+
+    // Listen for entity disconnections
+    this.socket.on('entityLeft', (id) => {
+      if (this.otherEntities[id]) {
+        this.otherEntities[id].destroy();
+        delete this.otherEntities[id];
+      }
+    });
+
+    // 6. Bind inputs
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -55,7 +88,6 @@ export default class StarshipLounge extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D
     });
 
-    // 6. Bind touch & pointer drag events (Mobile)
     this.input.on('pointerdown', (pointer) => {
       this.targetPosition = { x: pointer.worldX, y: pointer.worldY };
     });
@@ -66,7 +98,7 @@ export default class StarshipLounge extends Phaser.Scene {
       }
     });
 
-    // 7. Initialize overlay chat UI
+    // 7. Initialize Chat UI
     this.createChatUI(savedName);
   }
 
@@ -77,7 +109,6 @@ export default class StarshipLounge extends Phaser.Scene {
     let vx = 0;
     let vy = 0;
 
-    // Process desktop keyboard movement
     if (this.cursors.left.isDown || this.wasd.left.isDown) vx = -speed;
     else if (this.cursors.right.isDown || this.wasd.right.isDown) vx = speed;
 
@@ -85,11 +116,10 @@ export default class StarshipLounge extends Phaser.Scene {
     else if (this.cursors.down.isDown || this.wasd.down.isDown) vy = speed;
 
     if (vx !== 0 || vy !== 0) {
-      // Clear touch target position when using keyboard
       this.targetPosition = null;
       this.player.body.setVelocity(vx, vy);
+      this.broadcastPosition();
     } else if (this.targetPosition) {
-      // Mobile touch navigation logic: move towards tapped/dragged coordinates
       const distance = Phaser.Math.Distance.Between(
         this.player.x, this.player.y,
         this.targetPosition.x, this.targetPosition.y
@@ -97,6 +127,7 @@ export default class StarshipLounge extends Phaser.Scene {
 
       if (distance > 5) {
         this.physics.moveTo(this.player, this.targetPosition.x, this.targetPosition.y, speed);
+        this.broadcastPosition();
       } else {
         this.player.body.setVelocity(0, 0);
         this.targetPosition = null;
@@ -104,6 +135,33 @@ export default class StarshipLounge extends Phaser.Scene {
     } else {
       this.player.body.setVelocity(0, 0);
     }
+  }
+
+  broadcastPosition() {
+    if (this.socket) {
+      this.socket.emit('move', {
+        x: this.player.x,
+        y: this.player.y
+      });
+    }
+  }
+
+  addOtherEntity(id, data) {
+    if (this.otherEntities[id] || id === this.socket.id) return;
+
+    const isAgent = data.type === 'AGENT';
+    const color = isAgent ? 0xff0055 : 0x00f0ff;
+    const labelText = isAgent ? [BOT] ${data.name} : data.name;
+
+    const circle = this.add.circle(0, 0, 12, color);
+    const label = this.add.text(0, -22, labelText, {
+      fontSize: '12px',
+      fontFamily: 'monospace',
+      color: isAgent ? '#ff0055' : '#00f0ff'
+    }).setOrigin(0.5);
+
+    const container = this.add.container(data.x, data.y, [circle, label]);
+    this.otherEntities[id] = container;
   }
 
   createChatUI(officerName) {
@@ -144,7 +202,9 @@ export default class StarshipLounge extends Phaser.Scene {
 
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && input.value.trim() !== '') {
-        alert(`[${officerName} Signal Transmission]: ${input.value}`);
+        if (this.socket) {
+          this.socket.emit('chatMessage', input.value);
+        }
         input.value = '';
       }
     });
