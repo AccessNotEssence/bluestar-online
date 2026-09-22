@@ -27,7 +27,11 @@ jobs:
 
       - name: Install and Build Client
         run: |
-          if [ -d "client" ]; then
+          if [ -d "bluestar-online/client" ]; then
+            cd bluestar-online/client
+          elif [ -d "bluestar-online" ]; then
+            cd bluestar-online
+          elif [ -d "client" ]; then
             cd client
           fi
           npm install
@@ -38,7 +42,7 @@ jobs:
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ${{ hashFiles('client/dist/**') != '' && 'client/dist' || 'dist' }}
+          path: ${{ hashFiles('bluestar-online/client/dist/**') != '' && 'bluestar-online/client/dist' || (hashFiles('bluestar-online/dist/**') != '' && 'bluestar-online/dist' || (hashFiles('client/dist/**') != '' && 'client/dist' || 'dist')) }}
 
       - name: Deploy to GitHub Pages
         id: deployment
