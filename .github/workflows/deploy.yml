@@ -30,6 +30,8 @@ jobs:
           cd client
           npm install
           npm run build
+        env:
+          VITE_SERVER_URL: https://bluestar-online-server.onrender.com
 
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
