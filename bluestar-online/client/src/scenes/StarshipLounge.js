@@ -47,15 +47,24 @@ export default class StarshipLounge extends Phaser.Scene {
     this.physics.world.enable(this.player);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    // 5. Connect to Socket.io backend
-    const serverUrl = import.meta.env.VITE_SERVER_URL || 'https://bluestar-online-server.onrender.com';
-    this.socket = io(serverUrl);
+    // 5. Connect to Socket.io backend with explicit transports
+    const serverUrl = 'https://bluestar-online-server.onrender.com';
+    this.socket = io(serverUrl, {
+      transports: ['websocket', 'polling'],
+      secure: true,
+      reconnection: true
+    });
 
-    this.socket.emit('joinLounge', {
-      name: savedName,
-      type: 'HUMAN',
-      x: startX,
-      y: startY
+    this.socket.on('connect', () => {
+      console.log('[LOGOS SOCKET] Connected to Starship Lounge backend! ID:', this.socket.id);
+      this.appendChatMessage('SYSTEM', 'Quantum channel established with Starship Lounge.');
+
+      this.socket.emit('joinLounge', {
+        name: savedName,
+        type: 'HUMAN',
+        x: startX,
+        y: startY
+      });
     });
 
     this.socket.on('currentEntities', (entities) => {
@@ -87,12 +96,22 @@ export default class StarshipLounge extends Phaser.Scene {
 
     this.socket.on('chatMessage', (data) => {
       const senderName = data.name || 'Unknown';
-      this.appendChatMessage(senderName, data.message);
+      const message = data.message || data;
 
+      this.appendChatMessage(senderName, message);
+
+      // Render speech bubble
       if (this.socket && data.id === this.socket.id) {
-        this.showSpeechBubble(this.player, data.message);
-      } else if (this.otherEntities[data.id]) {
-        this.showSpeechBubble(this.otherEntities[data.id], data.message);
+        this.showSpeechBubble(this.player, message);
+      } else {
+        // Match entity by socket ID or by entity name (for DavidAgent)
+        let foundEntity = this.otherEntities[data.id];
+        if (!foundEntity) {
+          foundEntity = Object.values(this.otherEntities).find(e => e.entityName === senderName);
+        }
+        if (foundEntity) {
+          this.showSpeechBubble(foundEntity, message);
+        }
       }
     });
 
@@ -157,7 +176,7 @@ export default class StarshipLounge extends Phaser.Scene {
   }
 
   broadcastPosition() {
-    if (this.socket) {
+    if (this.socket && this.socket.connected) {
       this.socket.emit('move', {
         x: this.player.x,
         y: this.player.y
@@ -181,6 +200,7 @@ export default class StarshipLounge extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const container = this.add.container(data.x, data.y, [circle, label]);
+    container.entityName = data.name; // Tag container with entity name
     this.otherEntities[id] = container;
   }
 
@@ -245,7 +265,6 @@ export default class StarshipLounge extends Phaser.Scene {
       pointer-events: auto;
     `;
 
-    // Scrollable broadcast channel window (Chat Log Box)
     const logBox = document.createElement('div');
     logBox.id = 'chat-log-box';
     logBox.style.cssText = `
@@ -263,7 +282,6 @@ export default class StarshipLounge extends Phaser.Scene {
       box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
     `;
 
-    // Input section (Input + Send Button)
     const inputRow = document.createElement('form');
     inputRow.style.cssText = `
       display: flex;
@@ -307,7 +325,7 @@ export default class StarshipLounge extends Phaser.Scene {
     const handleSend = (e) => {
       e.preventDefault();
       const val = input.value.trim();
-      if (val !== '' && this.socket) {
+      if (val !== '' && this.socket && this.socket.connected) {
         this.socket.emit('chatMessage', val);
         input.value = '';
       }
