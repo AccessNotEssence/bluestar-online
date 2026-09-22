@@ -157,7 +157,7 @@ export default class StarshipLounge extends Phaser.Scene {
         const sprite = this.add.sprite(data.x, data.y, spriteKey);
         
         const labelColor = data.type === 'AGENT' ? '#ff0055' : '#00f0ff';
-        const labelText = data.type === 'AGENT' ? [BOT] ${data.name} : data.name;
+        const labelText = data.type === 'AGENT' ? `[BOT] ${data.name}`: data.name;
 
         const label = this.add.text(data.x, data.y - 25, labelText, {
             fontSize: '12px',
