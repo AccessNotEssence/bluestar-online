@@ -27,7 +27,9 @@ jobs:
 
       - name: Install and Build Client
         run: |
-          cd client
+          if [ -d "client" ]; then
+            cd client
+          fi
           npm install
           npm run build
         env:
@@ -36,7 +38,7 @@ jobs:
       - name: Upload GitHub Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: client/dist
+          path: ${{ hashFiles('client/dist/**') != '' && 'client/dist' || 'dist' }}
 
       - name: Deploy to GitHub Pages
         id: deployment
