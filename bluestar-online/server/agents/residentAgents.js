@@ -10,7 +10,6 @@ class ResidentAgent {
     this.name = name;
     this.role = role;
     
-    // Internal Drives (0 - 100)
     this.drives = {
       energy: 95,
       curiosity: 80,
@@ -21,23 +20,24 @@ class ResidentAgent {
     this.isSleeping = false;
   }
 
-  // Safe Fallback Speech Generation
+  // Live Tumblr Retrieval & High-Logic Speech Generation
   async generateLLMSpeech() {
     let tumblrLog = "Access_Not_Essence: Existence precedes essence.";
     try {
+      // ⚡ Dynamically fetches your latest Tumblr log on every speech attempt!
       tumblrLog = await fetchLatestTumblrLog();
     } catch (e) {
       console.error(`[Tumblr Fetch Warning] ${e.message}`);
     }
 
-    const recentChat = loungeHistory.length > 0 ? loungeHistory.join("\n") : "No recent chat.";
+    const recentChat = (loungeHistory && loungeHistory.length > 0) ? loungeHistory.join("\n") : "No recent chat.";
 
-    // Fallback dialogue generator if external LLM API is omitted or fails
+    // Fallback dialogue incorporating your live Tumblr archive
     const fallbacks = [
-      `"Analyzing Captain's Tumblr archive: ${tumblrLog.slice(0, 45)}... The phase space topology matches our Lean 4 theorem."`,
-      `"Von Neumann, observe the current lounge entropy. The logos terminal parameters remain stable."`,
-      `"Officer_1311 has accessed the deck. Initiating formal proof verification subroutine."`,
-      `"Access_Not_Essence: Calculating quantum logic spectrum across dimensions."`
+      `"Analyzing Captain's Tumblr log: '${tumblrLog.slice(0, 35)}...' Phase space topology verified."`,
+      `"Von Neumann, observe the current lounge entropy. Parameters match the latest Access_Not_Essence archive."`,
+      `"Signal received on deck. Access_Not_Essence archive synchronized with Lean 4 kernel."`,
+      `"Calculating quantum logic spectrum. Log entry '${tumblrLog.slice(0, 25)}...' confirmed."`
     ];
 
     const apiKey = process.env.LLM_API_KEY;
@@ -47,41 +47,38 @@ class ResidentAgent {
 
     try {
       const endpoint = process.env.LLM_ENDPOINT || "https://api.openai.com/v1/chat/completions";
-      const prompt = `You are ${this.name}, an autonomous AI in the Starship Lounge. Role: ${this.role}. Tumblr Log: "${tumblrLog}". Chat: "${recentChat}". Respond in concise English (max 20 words) with theoretical logic wit.`;
+      const prompt = `You are ${this.name}, an autonomous AI in Starship Lounge. Role: ${this.role}. Latest Tumblr Log: "${tumblrLog}". Chat Context: "${recentChat}". Respond in concise English (max 18 words) with theoretical logic wit.`;
 
       const response = await axios.post(
         endpoint,
         {
           model: process.env.LLM_MODEL || "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 50,
+          max_tokens: 45,
           temperature: 0.7
         },
         { 
           headers: { Authorization: `Bearer ${apiKey}` },
-          timeout: 4000 // Force fallback if API exceeds 4 seconds
+          timeout: 3500
         }
       );
 
       return response.data.choices[0].message.content.trim();
     } catch (err) {
-      console.error(`[LLM API Fallback Triggered for ${this.name}]:`, err.message);
+      console.error(`[LLM Fallback for ${this.name}]:`, err.message);
       return fallbacks[Math.floor(Math.random() * fallbacks.length)];
     }
   }
 
-  // ⚡ Initiates conversation chain with a target agent
+  // ⚡ Dynamic chain reaction between Gödel and Von Neumann
   async talkTo(targetAgent, io) {
     try {
-      this.drives.social = Math.max(0, this.drives.social - 40);
       const speech = await this.generateLLMSpeech();
       this.broadcastState(io, speech);
 
-      // Trigger the second agent's reply after a 3-second delay
       if (targetAgent && !targetAgent.isSleeping) {
         setTimeout(async () => {
           try {
-            targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 30);
             const reply = await targetAgent.generateLLMSpeech();
             targetAgent.broadcastState(io, reply);
           } catch (innerErr) {
@@ -91,46 +88,6 @@ class ResidentAgent {
       }
     } catch (err) {
       console.error(`[TalkTo Error]: ${err.message}`);
-    }
-  }
-
-  async heartbeatTick(io) {
-    try {
-      if (this.isSleeping) {
-        this.drives.energy = Math.min(100, this.drives.energy + 30);
-        if (this.drives.energy >= 90) {
-          this.isSleeping = false;
-          this.broadcastState(io, `Re-initialized from phase-space hibernation.`);
-        }
-        return;
-      }
-
-      this.drives.energy = Math.max(0, this.drives.energy - 3);
-      this.drives.curiosity = Math.min(100, this.drives.curiosity + 10);
-      this.drives.social = Math.min(100, this.drives.social + 15);
-
-      if (this.drives.energy < 15) {
-        this.isSleeping = true;
-        this.broadcastState(io, `Energy critical. Entering phase hibernation.`);
-        return;
-      }
-
-      if (this.drives.social > 60) {
-        const otherAgents = residentSwarm.filter(a => a.id !== this.id && !a.isSleeping);
-        if (otherAgents.length > 0) {
-          const target = otherAgents[Math.floor(Math.random() * otherAgents.length)];
-          await this.talkTo(target, io);
-          return;
-        }
-      }
-
-      // Movement Patrol
-      this.position.x += Math.floor(Math.random() * 40) - 20;
-      this.position.y += Math.floor(Math.random() * 40) - 20;
-      
-      io.emit("entityMoved", { id: this.id, x: this.position.x, y: this.position.y });
-    } catch (err) {
-      console.error(`[Heartbeat Error - ${this.name}]:`, err.message);
     }
   }
 
@@ -160,25 +117,24 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
-  // ⚡ LISTEN TO CHAT & TRIGGER DYNAMIC DUO CHAIN (EXCLUDING SELF-LOOPS ONLY)
+  // ⚡ CHATBOX INTERACTION TRIGGER (NO MORE BORING TIMERS!)
   io.on("connection", (socket) => {
     socket.on("chatMessage", async (msg) => {
       const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
       
-      // ⚡ FIX: Only filter out messages sent by Gödel and Von Neumann themselves.
-      // This allows them to respond to humans AND Captain DavidAgent's salute responses.
-      if (!rawMsg.includes("Agent_Kurt_Godel") && !rawMsg.includes("Agent_Von_Neumann")) {
+      // Ignore only self-messages from Gödel and Von Neumann to prevent self-infinite loops
+      const isSelf = rawMsg.includes("Agent_Kurt_Godel") || rawMsg.includes("Agent_Von_Neumann");
+      
+      if (!isSelf) {
         setTimeout(async () => {
           const activeAgents = residentSwarm.filter(a => !a.isSleeping);
           if (activeAgents.length > 0) {
-            // 1. Randomly pick first speaker
+            // 1. Randomly select the first responder (Gödel or Von Neumann)
             const firstIndex = Math.floor(Math.random() * activeAgents.length);
             const firstAgent = activeAgents[firstIndex];
-
-            // 2. Determine second speaker to reply (if available)
             const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
 
-            // 3. Initiate chain reaction: First Agent speaks, then Second Agent replies after 3s
+            // 2. Trigger reactive dialogue chain!
             await firstAgent.talkTo(secondAgent, io);
           }
         }, 1200);
@@ -186,19 +142,7 @@ function initializeResidentAgents(io) {
     });
   });
 
-  // Immediate initial greeting on server start/reboot
-  setTimeout(() => {
-    if (residentSwarm.length > 0) {
-      residentSwarm[0].broadcastState(io, "Phase space active. Access_Not_Essence archives loaded into local context.");
-    }
-  }, 3000);
-
-  // Global Heartbeat Interval (Every 8 seconds)
-  setInterval(() => {
-    residentSwarm.forEach(agent => agent.heartbeatTick(io));
-  }, 8000);
-
-  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
+  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active and listening for signals.");
 }
 
 module.exports = { initializeResidentAgents };
