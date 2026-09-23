@@ -58,11 +58,15 @@ function initSockets(server) {
       }
     });
 
-    // ⚡ CHAT HUB WITH SAFE AGENT TRIGGER
-    socket.on('chatMessage', (msg) => {
+    // ⚡ CHAT HUB HANDLER WITH COMPATIBILITY FOR MULTIPLE EVENT NAMES
+    const processChatMessage = (msg) => {
       const entity = entities[socket.id];
-      const senderName = entity ? entity.name : 'Unknown';
-      const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
+      let senderName = entity ? entity.name : 'Officer_1311';
+      let rawMsg = typeof msg === 'string' ? msg : (msg.message || msg.text || '');
+
+      if (typeof msg === 'object' && msg.name) {
+        senderName = msg.name;
+      }
 
       console.log(`[CHAT] [${senderName}]: ${rawMsg}`);
 
@@ -70,6 +74,7 @@ function initSockets(server) {
       loungeHistory.push(`${senderName}: ${rawMsg}`);
       if (loungeHistory.length > 10) loungeHistory.shift();
 
+      // Dual broadcast
       io.emit('chatMessage', {
         id: socket.id,
         name: senderName,
@@ -77,12 +82,11 @@ function initSockets(server) {
       });
 
       // Exclude Agent self-messages to prevent infinite speech loops
-      const isAgentSelf = senderName.startsWith('Agent_Kurt_Godel') || senderName.startsWith('Agent_Von_Neumann');
+      const isAgentSelf = senderName.includes('Agent_Kurt_Godel') || senderName.includes('Agent_Von_Neumann');
 
       if (!isAgentSelf) {
         setTimeout(async () => {
           try {
-            // Retrieve swarm from global reference, with require fallback
             let swarm = global.residentSwarmRef;
             if (!swarm || swarm.length === 0) {
               const agentModule = require('../agents/residentAgents.js');
@@ -92,12 +96,10 @@ function initSockets(server) {
             if (swarm && swarm.length > 0) {
               const activeAgents = swarm.filter(a => !a.isSleeping);
               if (activeAgents.length > 0) {
-                // Pick initial responder randomly
                 const firstIndex = Math.floor(Math.random() * activeAgents.length);
                 const firstAgent = activeAgents[firstIndex];
                 const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
 
-                // Initiate chain reaction
                 await firstAgent.talkTo(secondAgent, io, loungeHistory);
               }
             }
@@ -106,7 +108,11 @@ function initSockets(server) {
           }
         }, 1200);
       }
-    });
+    };
+
+    // Listen to both event names to ensure compatibility
+    socket.on('chatMessage', processChatMessage);
+    socket.on('sendMessage', processChatMessage);
 
     socket.on('disconnect', () => {
       console.log(`[SOCKET DISCONNECTED] Client disconnected: ${socket.id}`);
