@@ -16,7 +16,6 @@ const entities = {
   }
 };
 
-// Global Lounge Chat Memory (Keeps last 10 messages)
 const loungeHistory = [];
 
 function initSockets(server) {
@@ -27,9 +26,6 @@ function initSockets(server) {
       methods: ["GET", "POST"]
     }
   });
-
-  // Lazy-load residentSwarm to avoid circular dependency issues
-  const { residentSwarm } = require('../agents/residentAgents.js');
 
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
@@ -62,7 +58,7 @@ function initSockets(server) {
       }
     });
 
-    // ⚡ REACTIVE CHAT & AGENT TRIGGER HUB
+    // ⚡ CHAT HUB WITH AGENT TRIGGER
     socket.on('chatMessage', (msg) => {
       const entity = entities[socket.id];
       const senderName = entity ? entity.name : 'Unknown';
@@ -80,22 +76,25 @@ function initSockets(server) {
         message: rawMsg
       });
 
-      // ⚡ TRIGGER GÖDEL & VON NEUMANN CHAIN REACTION (EXCLUDE SELF-MESSAGES ONLY)
+      // ⚡ Dynamically trigger Agents without module level circular require
       const isAgentSelf = senderName.startsWith('Agent_Kurt_Godel') || senderName.startsWith('Agent_Von_Neumann');
 
       if (!isAgentSelf) {
         setTimeout(async () => {
-          if (residentSwarm && residentSwarm.length > 0) {
-            const activeAgents = residentSwarm.filter(a => !a.isSleeping);
-            if (activeAgents.length > 0) {
-              // 1. Randomly pick first responder (Kurt Gödel or Von Neumann)
-              const firstIndex = Math.floor(Math.random() * activeAgents.length);
-              const firstAgent = activeAgents[firstIndex];
-              const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
+          try {
+            const { residentSwarm } = require('../agents/residentAgents.js');
+            if (residentSwarm && residentSwarm.length > 0) {
+              const activeAgents = residentSwarm.filter(a => !a.isSleeping);
+              if (activeAgents.length > 0) {
+                const firstIndex = Math.floor(Math.random() * activeAgents.length);
+                const firstAgent = activeAgents[firstIndex];
+                const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
 
-              // 2. Trigger dialogue chain (Fetches Tumblr log & replies in sequence)
-              await firstAgent.talkTo(secondAgent, io);
+                await firstAgent.talkTo(secondAgent, io, loungeHistory);
+              }
             }
+          } catch (err) {
+            console.error('[Agent Trigger Error]:', err.message);
           }
         }, 1200);
       }
