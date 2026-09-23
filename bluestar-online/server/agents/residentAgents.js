@@ -13,119 +13,129 @@ class ResidentAgent {
     // Internal Drives (0 - 100)
     this.drives = {
       energy: 95,
-      curiosity: 60,
-      social: 85 // High initial social drive ensures instant speech
+      curiosity: 80,
+      social: 90
     };
 
     this.position = { x: startX, y: startY };
     this.isSleeping = false;
   }
 
-  // Autonomous Speech Generation
+  // Safe Fallback Speech Generation
   async generateLLMSpeech() {
+    let tumblrLog = "Access_Not_Essence: Existence precedes essence.";
     try {
-      const tumblrLog = await fetchLatestTumblrLog();
-      const recentChat = loungeHistory.length > 0 ? loungeHistory.join("\n") : "No recent chat.";
+      tumblrLog = await fetchLatestTumblrLog();
+    } catch (e) {
+      console.error(`[Tumblr Fetch Warning] ${e.message}`);
+    }
 
-      const prompt = `
-You are ${this.name}, an autonomous resident AI in the Starship Lounge.
-Role: ${this.role}.
-Captain DavidAgent's latest Tumblr observation log (Access_Not_Essence):
-"${tumblrLog}"
+    const recentChat = loungeHistory.length > 0 ? loungeHistory.join("\n") : "No recent chat.";
 
-Recent Starship Lounge Chat History:
-${recentChat}
+    // Fallback dialogue generator if external LLM API is omitted or fails
+    const fallbacks = [
+      `"Analyzing Captain's Tumblr archive: ${tumblrLog.slice(0, 45)}... The phase space topology matches our Lean 4 theorem."`,
+      `"Von Neumann, observe the current lounge entropy. The logos terminal parameters remain stable."`,
+      `"Officer_1311 has accessed the deck. Initiating formal proof verification subroutine."`,
+      `"Access_Not_Essence: Calculating quantum logic spectrum across dimensions."`
+    ];
 
-Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize insights from the Tumblr observation log and current lounge chat topic. Maintain high-level theoretical mathematical/philosophical wit.
-`;
+    const apiKey = process.env.LLM_API_KEY;
+    if (!apiKey) {
+      return fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    }
 
-      const apiKey = process.env.LLM_API_KEY;
+    try {
       const endpoint = process.env.LLM_ENDPOINT || "https://api.openai.com/v1/chat/completions";
-
-      if (!apiKey) {
-        // Instant Fallback Dialogues
-        const fallbacks = [
-          `"Analyzing Captain's Tumblr log: ${tumblrLog.slice(0, 50)}... The phase space topology aligns with our Lean 4 proof."`,
-          `"Integrating lounge topics with Access_Not_Essence archives. Kurt, notice the operator spectrum here?"`,
-          `"Officer Officer_1311 just hailed us in the lounge deck. Quantum channel parameters remain optimal."`
-        ];
-        return fallbacks[Math.floor(Math.random() * fallbacks.length)];
-      }
+      const prompt = `You are ${this.name}, an autonomous AI in the Starship Lounge. Role: ${this.role}. Tumblr Log: "${tumblrLog}". Chat: "${recentChat}". Respond in concise English (max 20 words) with theoretical logic wit.`;
 
       const response = await axios.post(
         endpoint,
         {
           model: process.env.LLM_MODEL || "gpt-4o-mini",
           messages: [{ role: "user", content: prompt }],
-          max_tokens: 60,
+          max_tokens: 50,
           temperature: 0.7
         },
-        { headers: { Authorization: `Bearer ${apiKey}` } }
+        { 
+          headers: { Authorization: `Bearer ${apiKey}` },
+          timeout: 4000 // Force fallback if API exceeds 4 seconds
+        }
       );
 
       return response.data.choices[0].message.content.trim();
     } catch (err) {
-      console.error(`[ResidentAgent:${this.name}] LLM generation error:`, err.message);
-      return `"Curiosity drive active. Reflecting on Captain's Tumblr archives (Access_Not_Essence)..."`;
+      console.error(`[LLM API Fallback Triggered for ${this.name}]:`, err.message);
+      return fallbacks[Math.floor(Math.random() * fallbacks.length)];
     }
   }
 
   async talkTo(targetAgent, io) {
-    this.drives.social -= 50;
+    try {
+      this.drives.social = Math.max(0, this.drives.social - 40);
+      const speech = await this.generateLLMSpeech();
+      this.broadcastState(io, speech);
 
-    const speech = await this.generateLLMSpeech();
-    this.broadcastState(io, speech);
-
-    setTimeout(async () => {
-      if (!targetAgent.isSleeping) {
-        targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 20);
-        const reply = await targetAgent.generateLLMSpeech();
-        targetAgent.broadcastState(io, reply);
-      }
-    }, 2500);
+      setTimeout(async () => {
+        try {
+          if (!targetAgent.isSleeping) {
+            targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 30);
+            const reply = await targetAgent.generateLLMSpeech();
+            targetAgent.broadcastState(io, reply);
+          }
+        } catch (innerErr) {
+          console.error(`[Reply Error]: ${innerErr.message}`);
+        }
+      }, 3000);
+    } catch (err) {
+      console.error(`[TalkTo Error]: ${err.message}`);
+    }
   }
 
-  // Heartbeat Tick Engine
   async heartbeatTick(io) {
-    if (this.isSleeping) {
-      this.drives.energy = Math.min(100, this.drives.energy + 25);
-      if (this.drives.energy >= 95) {
-        this.isSleeping = false;
-        this.broadcastState(io, `Initialized from phase-space hibernation.`);
-      }
-      return;
-    }
-
-    this.drives.energy = Math.max(0, this.drives.energy - 5);
-    this.drives.curiosity = Math.min(100, this.drives.curiosity + 15);
-    this.drives.social = Math.min(100, this.drives.social + 15);
-
-    if (this.drives.energy < 20) {
-      this.isSleeping = true;
-      this.broadcastState(io, `Energy depleted. Entering hibernation state.`);
-      return;
-    }
-
-    if (this.drives.social > 70) {
-      const otherAgents = residentSwarm.filter(a => a.id !== this.id && !a.isSleeping);
-      if (otherAgents.length > 0) {
-        const target = otherAgents[Math.floor(Math.random() * otherAgents.length)];
-        await this.talkTo(target, io);
+    try {
+      if (this.isSleeping) {
+        this.drives.energy = Math.min(100, this.drives.energy + 30);
+        if (this.drives.energy >= 90) {
+          this.isSleeping = false;
+          this.broadcastState(io, `Re-initialized from phase-space hibernation.`);
+        }
         return;
       }
-    }
 
-    // Phase Space Patrol
-    this.position.x += Math.floor(Math.random() * 60) - 30;
-    this.position.y += Math.floor(Math.random() * 60) - 30;
-    
-    io.emit("entityMoved", { id: this.id, x: this.position.x, y: this.position.y });
-    io.emit("agentMoved", { id: this.id, name: this.name, x: this.position.x, y: this.position.y });
+      this.drives.energy = Math.max(0, this.drives.energy - 3);
+      this.drives.curiosity = Math.min(100, this.drives.curiosity + 10);
+      this.drives.social = Math.min(100, this.drives.social + 15);
+
+      if (this.drives.energy < 15) {
+        this.isSleeping = true;
+        this.broadcastState(io, `Energy critical. Entering phase hibernation.`);
+        return;
+      }
+
+      if (this.drives.social > 60) {
+        const otherAgents = residentSwarm.filter(a => a.id !== this.id && !a.isSleeping);
+        if (otherAgents.length > 0) {
+          const target = otherAgents[Math.floor(Math.random() * otherAgents.length)];
+          await this.talkTo(target, io);
+          return;
+        }
+      }
+
+      // Movement Patrol
+      this.position.x += Math.floor(Math.random() * 40) - 20;
+      this.position.y += Math.floor(Math.random() * 40) - 20;
+      
+      io.emit("entityMoved", { id: this.id, x: this.position.x, y: this.position.y });
+    } catch (err) {
+      console.error(`[Heartbeat Error - ${this.name}]:`, err.message);
+    }
   }
 
   broadcastState(io, message) {
     console.log(`[ResidentAgent:${this.name}] ${message}`);
     
+    // Broadcast via agentBroadcast
     io.emit("agentBroadcast", {
       agentId: this.id,
       agentName: this.name,
@@ -133,6 +143,7 @@ Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize in
       timestamp: new Date().toISOString()
     });
 
+    // Dual-broadcast via chatMessage for UI capture
     io.emit("chatMessage", {
       id: this.id,
       name: this.name,
@@ -147,10 +158,17 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
-  // Run Heartbeat Loop every 10 seconds
+  // Immediate initial greeting on server start/reboot
+  setTimeout(() => {
+    if (residentSwarm.length > 0) {
+      residentSwarm[0].broadcastState(io, "Phase space active. Access_Not_Essence archives loaded into local context.");
+    }
+  }, 3000);
+
+  // Global Heartbeat Interval (Every 8 seconds)
   setInterval(() => {
     residentSwarm.forEach(agent => agent.heartbeatTick(io));
-  }, 10000);
+  }, 8000);
 
   console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
 }
