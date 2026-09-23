@@ -118,11 +118,32 @@ export default class StarshipLounge extends Phaser.Scene {
       }
     });
 
-    this.socket.on('chatMessage', (data) => {
-      const senderName = data.name || 'Unknown';
-      const message = data.message || data;
+    // ⚡ FIX 1: Listen explicitly to Resident Agents' LLM broadcasts (Kurt Gödel & Von Neumann)
+    this.socket.on('agentBroadcast', (data) => {
+      const agentName = data.agentName || data.name || 'Resident_Agent';
+      const message = data.message || '';
 
-      this.appendChatMessage(senderName, message);
+      this.appendChatMessage(agentName, message);
+
+      // Find the agent in phase space and display speech bubble
+      let foundEntity = this.otherEntities[data.agentId];
+      if (!foundEntity) {
+        foundEntity = Object.values(this.otherEntities).find(e => e.entityName === agentName);
+      }
+      if (foundEntity) {
+        this.showSpeechBubble(foundEntity, message);
+      }
+    });
+
+    // ⚡ FIX 2: Universal Chat Message listener with robust payload handling
+    this.socket.on('chatMessage', (data) => {
+      const senderName = data.name || data.senderName || 'Unknown';
+      const message = typeof data === 'string' ? data : (data.message || '');
+
+      // Avoid double logging if it came from agentBroadcast
+      if (!senderName.startsWith('Agent_')) {
+        this.appendChatMessage(senderName, message);
+      }
 
       if (this.socket && data.id === this.socket.id) {
         this.showSpeechBubble(this.player, message);
@@ -221,7 +242,7 @@ export default class StarshipLounge extends Phaser.Scene {
     if (this.otherEntities[id] || (this.socket && id === this.socket.id)) return;
 
     const isCaptain = data.name && data.name.includes('Captain');
-    const isAgent = data.type === 'AGENT' || isCaptain;
+    const isAgent = data.type === 'AGENT' || isCaptain || (data.name && data.name.startsWith('Agent_'));
     const color = isCaptain ? 0xffd700 : (isAgent ? 0xff0055 : 0x00f0ff);
     const labelText = isCaptain ? `[CAPTAIN] ${data.name}` : (isAgent ? `[BOT] ${data.name}` : data.name);
 
@@ -443,10 +464,12 @@ export default class StarshipLounge extends Phaser.Scene {
     const msgLine = document.createElement('div');
     const isSystem = sender === 'SYSTEM';
     const isCaptain = sender.includes('Captain');
+    const isAgent = sender.startsWith('Agent_') || sender.includes('Godel') || sender.includes('Neumann');
 
     let color = '#00f0ff';
     if (isSystem) color = '#94a3b8';
     if (isCaptain) color = '#ffd700';
+    if (isAgent) color = '#ff0055'; // Pink/Red highlight for Resident Agents!
 
     msgLine.style.color = color;
     msgLine.innerHTML = `<strong>[${sender}]</strong>: ${msg}`;
