@@ -1,6 +1,5 @@
 const axios = require("axios");
 const { fetchLatestTumblrLog } = require("../utils/tumblrFetcher.js");
-const { loungeHistory } = require("../sockets/movement.js");
 
 let residentSwarm = [];
 
@@ -20,8 +19,8 @@ class ResidentAgent {
     this.isSleeping = false;
   }
 
-  // Dynamic Tumblr Retrieval & Logic Speech Generation
-  async generateLLMSpeech() {
+  // Dynamic Tumblr Retrieval & High-Logic Speech Generation
+  async generateLLMSpeech(loungeHistory = []) {
     let tumblrLog = "Access_Not_Essence: Existence precedes essence.";
     try {
       tumblrLog = await fetchLatestTumblrLog();
@@ -31,7 +30,6 @@ class ResidentAgent {
 
     const recentChat = (loungeHistory && loungeHistory.length > 0) ? loungeHistory.join("\n") : "No recent chat.";
 
-    // Fallback dialogue incorporating your live Tumblr archive
     const fallbacks = [
       `"Analyzing Captain's Tumblr log: '${tumblrLog.slice(0, 35)}...' Phase space topology verified."`,
       `"Von Neumann, observe the current lounge entropy. Parameters match the latest Access_Not_Essence archive."`,
@@ -69,16 +67,15 @@ class ResidentAgent {
     }
   }
 
-  // Dynamic chain reaction between Gödel and Von Neumann
-  async talkTo(targetAgent, io) {
+  async talkTo(targetAgent, io, loungeHistory) {
     try {
-      const speech = await this.generateLLMSpeech();
+      const speech = await this.generateLLMSpeech(loungeHistory);
       this.broadcastState(io, speech);
 
       if (targetAgent && !targetAgent.isSleeping) {
         setTimeout(async () => {
           try {
-            const reply = await targetAgent.generateLLMSpeech();
+            const reply = await targetAgent.generateLLMSpeech(loungeHistory);
             targetAgent.broadcastState(io, reply);
           } catch (innerErr) {
             console.error(`[Reply Error]: ${innerErr.message}`);
@@ -93,7 +90,6 @@ class ResidentAgent {
   broadcastState(io, message) {
     console.log(`[ResidentAgent:${this.name}] ${message}`);
     
-    // Broadcast via agentBroadcast
     io.emit("agentBroadcast", {
       agentId: this.id,
       agentName: this.name,
@@ -101,7 +97,6 @@ class ResidentAgent {
       timestamp: new Date().toISOString()
     });
 
-    // Dual-broadcast via chatMessage for UI capture
     io.emit("chatMessage", {
       id: this.id,
       name: this.name,
@@ -116,8 +111,7 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
-  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) initialized into phase space.");
+  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
 }
 
-// ⚡ CRITICAL: Export residentSwarm so movement.js can access the agents dynamically
 module.exports = { initializeResidentAgents, residentSwarm };
