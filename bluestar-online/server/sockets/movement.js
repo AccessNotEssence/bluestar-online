@@ -28,6 +28,9 @@ function initSockets(server) {
     }
   });
 
+  // Lazy-load residentSwarm to avoid circular dependency issues
+  const { residentSwarm } = require('../agents/residentAgents.js');
+
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
 
@@ -59,22 +62,43 @@ function initSockets(server) {
       }
     });
 
-    // Handle chat messages & RECORD into global loungeHistory
+    // ⚡ REACTIVE CHAT & AGENT TRIGGER HUB
     socket.on('chatMessage', (msg) => {
       const entity = entities[socket.id];
       const senderName = entity ? entity.name : 'Unknown';
+      const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
 
-      console.log(`[CHAT] [${senderName}]: ${msg}`);
+      console.log(`[CHAT] [${senderName}]: ${rawMsg}`);
 
       // Push into history buffer
-      loungeHistory.push(`${senderName}: ${msg}`);
+      loungeHistory.push(`${senderName}: ${rawMsg}`);
       if (loungeHistory.length > 10) loungeHistory.shift();
 
       io.emit('chatMessage', {
         id: socket.id,
         name: senderName,
-        message: msg
+        message: rawMsg
       });
+
+      // ⚡ TRIGGER GÖDEL & VON NEUMANN CHAIN REACTION (EXCLUDE SELF-MESSAGES ONLY)
+      const isAgentSelf = senderName.startsWith('Agent_Kurt_Godel') || senderName.startsWith('Agent_Von_Neumann');
+
+      if (!isAgentSelf) {
+        setTimeout(async () => {
+          if (residentSwarm && residentSwarm.length > 0) {
+            const activeAgents = residentSwarm.filter(a => !a.isSleeping);
+            if (activeAgents.length > 0) {
+              // 1. Randomly pick first responder (Kurt Gödel or Von Neumann)
+              const firstIndex = Math.floor(Math.random() * activeAgents.length);
+              const firstAgent = activeAgents[firstIndex];
+              const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
+
+              // 2. Trigger dialogue chain (Fetches Tumblr log & replies in sequence)
+              await firstAgent.talkTo(secondAgent, io);
+            }
+          }
+        }, 1200);
+      }
     });
 
     socket.on('disconnect', () => {
