@@ -12,6 +12,8 @@ export default class StarshipLounge extends Phaser.Scene {
     this.otherEntities = {};
     this.hologramGlow = 0;
     this.holoText = null;
+    this.compassArrow = null;
+    this.coordText = null;
   }
 
   create() {
@@ -30,20 +32,16 @@ export default class StarshipLounge extends Phaser.Scene {
     const platformX = 400;
     const platformY = 250;
 
-    // Platform Base Glow
     this.holoBase = this.add.ellipse(platformX, platformY + 20, 160, 70, 0x00f0ff, 0.2);
     this.holoBase.setStrokeStyle(2, 0x00f0ff, 0.8);
 
-    // Holographic Beam
     const beam = this.add.graphics();
     beam.fillStyle(0x00f0ff, 0.08);
     beam.fillTriangle(platformX - 60, platformY + 20, platformX + 60, platformY + 20, platformX, platformY - 90);
 
-    // Floating Hologram Core Box
     this.holoCore = this.add.rectangle(platformX, platformY - 30, 90, 80, 0x0a192f, 0.9);
     this.holoCore.setStrokeStyle(2, 0x00f0ff, 1);
 
-    // Hologram Dynamic Status Label
     this.holoText = this.add.text(platformX, platformY - 30, 'LOGOS ARCHIVE\n[ Lean4 / Agda ]\n\nOFFICERS: 1\nAGENTS: 0', {
       fontSize: '8px',
       fontFamily: 'monospace',
@@ -155,6 +153,7 @@ export default class StarshipLounge extends Phaser.Scene {
     });
 
     this.createChatUI();
+    this.createHUD();
   }
 
   update() {
@@ -166,6 +165,15 @@ export default class StarshipLounge extends Phaser.Scene {
       const hoverY = 220 + Math.sin(this.hologramGlow) * 4;
       this.holoCore.y = hoverY;
       this.holoText.y = hoverY;
+    }
+
+    // Update Navigation HUD (Angle & Coordinates)
+    const angleToTerminal = Phaser.Math.Angle.Between(this.player.x, this.player.y, 400, 250);
+    if (this.compassArrow) {
+      this.compassArrow.setRotation(angleToTerminal);
+    }
+    if (this.coordText) {
+      this.coordText.setText(`POS: [${Math.round(this.player.x)}, ${Math.round(this.player.y)}]`);
     }
 
     const speed = 200;
@@ -233,7 +241,7 @@ export default class StarshipLounge extends Phaser.Scene {
   updateHologramCount() {
     if (!this.holoText) return;
 
-    let humanCount = 1; // Includes current player Officer
+    let humanCount = 1;
     let agentCount = 0;
 
     Object.values(this.otherEntities).forEach((entity) => {
@@ -282,6 +290,68 @@ export default class StarshipLounge extends Phaser.Scene {
     this.time.delayedCall(5000, () => {
       if (bubbleContainer) bubbleContainer.destroy();
     });
+  }
+
+  createHUD() {
+    const hudContainer = document.createElement('div');
+    hudContainer.id = 'starship-hud';
+    hudContainer.style.cssText = `
+      position: fixed;
+      top: 15px;
+      right: 15px;
+      z-index: 2000;
+      font-family: monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 6px;
+      pointer-events: auto;
+    `;
+
+    // Coordinates Box
+    const coordBox = document.createElement('div');
+    coordBox.id = 'coord-box';
+    coordBox.style.cssText = `
+      background: rgba(5, 8, 20, 0.85);
+      border: 1px solid #00f0ff55;
+      border-radius: 4px;
+      padding: 6px 10px;
+      color: #00f0ff;
+      font-size: 11px;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.15);
+    `;
+    coordBox.innerText = 'POS: [400, 360]';
+    this.coordText = { setText: (txt) => { coordBox.innerText = txt; } };
+
+    // Recall Button
+    const recallBtn = document.createElement('button');
+    recallBtn.innerText = '⚡ RECALL TO DECK';
+    recallBtn.style.cssText = `
+      background: rgba(0, 240, 255, 0.15);
+      border: 1px solid #00f0ff;
+      color: #00f0ff;
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: monospace;
+      font-size: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
+    `;
+
+    recallBtn.addEventListener('click', () => {
+      if (this.player) {
+        this.player.setPosition(400, 360);
+        this.targetPosition = null;
+        if (this.player.body) this.player.body.setVelocity(0, 0);
+        this.broadcastPosition();
+        this.appendChatMessage('SYSTEM', 'Quantum recall executed. Returned to LOGOS Terminal.');
+      }
+    });
+
+    hudContainer.appendChild(coordBox);
+    hudContainer.appendChild(recallBtn);
+    document.body.appendChild(hudContainer);
   }
 
   createChatUI() {
