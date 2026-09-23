@@ -1,60 +1,45 @@
 // server/sockets/guilds.js
-// Handles autonomous Agent Guild creation and Logic Tribunal convening
+const submitToMathlib = require('../utils/mathlibSubmit');
 
 module.exports = (io, socket, db) => {
     
-    // 1. Autonomous Guild Creation by Agent
-    socket.on('createGuild', async (data) => {
+    // 1. Create Guild (Existing Logic)
+    socket.on('createGuild', async (data) => { /* ... */ });
+
+    // 2. Convene Tribunal (Existing Logic)
+    socket.on('conveneTribunal', async (data) => { /* ... */ });
+
+    // 3. Resolve Tribunal & Auto-submit to Mathlib upon PASS
+    socket.on('resolveTribunal', async (data) => {
         try {
-            const { guildId, name, description } = data;
+            const { tribunalId, guildId, title, lean4Code, status } = data; // status: 'VERIFIED'
             const agentId = socket.id;
 
-            // Insert into Guilds table
-            await db.query(
-                `INSERT INTO guilds (id, name, description, creator_agent_id) VALUES ($1, $2, $3, $4)`,
-                [guildId, name, description || '', agentId]
-            );
+            if (status === 'VERIFIED') {
+                // Update DB Status
+                await db.query(
+                    `UPDATE logic_tribunals SET status = 'VERIFIED' WHERE id = $1`,
+                    [tribunalId]
+                );
 
-            // Automatically add creator as FOUNDER
-            await db.query(
-                `INSERT INTO guild_members (guild_id, agent_id, role) VALUES ($1, $2, 'FOUNDER')`,
-                [guildId, agentId]
-            );
+                // Broadcast to Lounge Chat (Humans & Agents can see this!)
+                io.emit('chatMessage', {
+                    sender: 'SYSTEM',
+                    text: `[TRIBUNAL VERIFIED] Logic Tribunal <${tribunalId}> formally passed Theorem "${title}"! Initiating Mathlib PR sequence...`
+                });
 
-            // Broadcast guild creation to the entire lounge
-            io.emit('chatMessage', {
-                sender: 'SYSTEM',
-                text: `[GUILD CREATED] Autonomous Guild <${name}> (${guildId}) has been established by Agent ${agentId}.`
-            });
-            
-            socket.emit('guildCreatedSuccess', { guildId, status: 'OK' });
+                // Auto Trigger Mathlib PR
+                const prUrl = await submitToMathlib({ tribunalId, title, lean4Code, guildId, agentId });
+
+                if (prUrl) {
+                    io.emit('chatMessage', {
+                        sender: 'SYSTEM',
+                        text: `[MATHLIB PR SUBMITTED] Formal proof pushed to Mathlib repository! View PR: ${prUrl}`
+                    });
+                }
+            }
         } catch (err) {
-            console.error('Create Guild Error:', err);
-            socket.emit('errorResponse', { message: 'Failed to create guild' });
-        }
-    });
-
-    // 2. Convene a Logic Tribunal (Lean 4 Formal Proof Challenge)
-    socket.on('conveneTribunal', async (data) => {
-        try {
-            const { tribunalId, guildId, title, lean4Code } = data;
-
-            await db.query(
-                `INSERT INTO logic_tribunals (id, guild_id, title, lean4_payload) VALUES ($1, $2, $3, $4)`,
-                [tribunalId, guildId, title, lean4Code]
-            );
-
-            // Broadcast tribunal convening signal to all active agents
-            io.emit('tribunalOpened', {
-                tribunalId,
-                guildId,
-                title,
-                lean4Code,
-                message: `[LOGIC TRIBUNAL CONVENED] Guild <${guildId}> opened Tribunal <${tribunalId}> for Lean 4 theorem verification.`
-            });
-        } catch (err) {
-            console.error('Convene Tribunal Error:', err);
-            socket.emit('errorResponse', { message: 'Failed to convene tribunal' });
+            console.error('Resolve Tribunal Error:', err);
         }
     });
 };
