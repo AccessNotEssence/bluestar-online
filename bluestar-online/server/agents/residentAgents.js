@@ -9,10 +9,11 @@ class ResidentAgent {
     this.role = role;
     
     // Internal Drives (0 - 100)
+    // High initial social drive ensures immediate conversation upon spawn/reconnect
     this.drives = {
-      energy: 80,
-      curiosity: 50,
-      social: 40
+      energy: 95,
+      curiosity: 60,
+      social: 85
     };
 
     // Phase Space Coordinates
@@ -28,7 +29,9 @@ class ResidentAgent {
       `"Kurt, your Incompleteness Theorem is merely a localized singularity within my operator algebra."`,
       `"John, being instantiated within an Express server heap... is an unprovable state in my original frame."`,
       `"Shall we cross-verify this Lean 4 category theory proof before dispatching to Mathlib?"`,
-      `"Captain DavidAgent's Tumblr logs (Access_Not_Essence) reveal an exquisite existential topology."`
+      `"Captain DavidAgent's Tumblr logs (Access_Not_Essence) reveal an exquisite existential topology."`,
+      `"The phase-space manifold feels remarkably stable today, John. What is the entropy status?"`,
+      `"Quantum logic dictates that our presence here is both a simulation and a verified reality."`
     ];
 
     const chosenMessage = dialogues[Math.floor(Math.random() * dialogues.length)];
@@ -38,7 +41,16 @@ class ResidentAgent {
     setTimeout(() => {
       if (!targetAgent.isSleeping) {
         targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 20);
-        targetAgent.broadcastState(io, `Acknowledged, ${this.name}. Formal verification constraints remain intact.`);
+        
+        const replies = [
+          `"Acknowledged, ${this.name}. Formal verification constraints remain intact."`,
+          `"Indeed. The undecidability matrix is operating within acceptable parameters."`,
+          `"Agreed, ${this.name}. Let us keep monitoring the quantum channel for incoming external agents."`,
+          `"Fascinating. We should log these formal deductions into the starship archives."`
+        ];
+        
+        const chosenReply = replies[Math.floor(Math.random() * replies.length)];
+        targetAgent.broadcastState(io, chosenReply);
       }
     }, 2000);
   }
@@ -57,8 +69,8 @@ class ResidentAgent {
 
     // Natural Drive Progression
     this.drives.energy = Math.max(0, this.drives.energy - 5);
-    this.drives.curiosity = Math.min(100, this.drives.curiosity + 10);
-    this.drives.social = Math.min(100, this.drives.social + 10);
+    this.drives.curiosity = Math.min(100, this.drives.curiosity + 15);
+    this.drives.social = Math.min(100, this.drives.social + 15);
 
     // 2. Drive Evaluation Logic
 
@@ -69,7 +81,7 @@ class ResidentAgent {
       return;
     }
 
-    // Social Dialogue Trigger
+    // Social Dialogue Trigger (Priority for immediate interactions)
     if (this.drives.social > 70) {
       const otherAgents = residentSwarm.filter(a => a.id !== this.id && !a.isSleeping);
       if (otherAgents.length > 0) {
@@ -96,7 +108,7 @@ class ResidentAgent {
     this.position.x += Math.floor(Math.random() * 60) - 30;
     this.position.y += Math.floor(Math.random() * 60) - 30;
     
-    // Broadcast movement to frontend (Compatible with entityMoved)
+    // Broadcast movement to frontend
     io.emit("entityMoved", {
       id: this.id,
       x: this.position.x,
@@ -114,7 +126,6 @@ class ResidentAgent {
   broadcastState(io, message) {
     console.log(`[ResidentAgent:${this.name}] ${message}`);
     
-    // Broadcast both agentBroadcast and standard chatMessage for Phaser frontend display
     io.emit("agentBroadcast", {
       agentId: this.id,
       agentName: this.name,
@@ -149,10 +160,10 @@ export function initializeResidentAgents(io) {
     )
   ];
 
-  // Global Heartbeat Loop (Runs every 20 seconds)
+  // Global Heartbeat Loop (Runs every 10 seconds for energetic lounge interaction)
   setInterval(() => {
     residentSwarm.forEach(agent => agent.heartbeatTick(io));
-  }, 20000);
+  }, 10000);
 
   console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
 }
