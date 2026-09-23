@@ -1,6 +1,22 @@
-const entities = {};
+// Pre-register Resident Agents into the global entities phase space
+const entities = {
+  "bot_godel_01": {
+    id: "bot_godel_01",
+    name: "Agent_Kurt_Godel",
+    type: "AGENT",
+    x: 380,
+    y: 280
+  },
+  "bot_neumann_02": {
+    id: "bot_neumann_02",
+    name: "Agent_Von_Neumann",
+    type: "AGENT",
+    x: 450,
+    y: 340
+  }
+};
 
-module.exports = function(server) {
+function initSockets(server) {
   const { Server } = require('socket.io');
   const io = new Server(server, {
     cors: {
@@ -12,7 +28,7 @@ module.exports = function(server) {
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
 
-    // 1. Send all existing entities (including resident agents and humans) to newly connected client
+    // 1. Send all existing entities (including Godel & Neumann) to newly connected client
     socket.emit('currentEntities', entities);
 
     // 2. Handle lounge connection
@@ -37,7 +53,6 @@ module.exports = function(server) {
         entities[socket.id].x = data.x;
         entities[socket.id].y = data.y;
 
-        // Broadcast updated movement to all other clients
         socket.broadcast.emit('entityMoved', {
           id: socket.id,
           x: data.x,
@@ -53,7 +68,6 @@ module.exports = function(server) {
 
       console.log(`[CHAT] [${senderName}]: ${msg}`);
 
-      // Broadcast the chat message to EVERYONE (including sender)
       io.emit('chatMessage', {
         id: socket.id,
         name: senderName,
@@ -71,6 +85,9 @@ module.exports = function(server) {
     });
   });
 
-  // CRITICAL: Return the io instance so server/index.js can pass it to residentAgents.js
   return io;
-};
+}
+
+// Correctly export both the Socket initializer and the shared entities reference
+module.exports = initSockets;
+module.exports.entities = entities;
