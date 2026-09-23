@@ -160,13 +160,14 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
-  // ⚡ LISTEN TO CHAT & TRIGGER RANDOM DYNAMIC DUO CHAIN
+  // ⚡ LISTEN TO CHAT & TRIGGER DYNAMIC DUO CHAIN (EXCLUDING SELF-LOOPS ONLY)
   io.on("connection", (socket) => {
     socket.on("chatMessage", async (msg) => {
       const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
       
-      // Ignore messages sent by agents or captain to prevent endless loops
-      if (!rawMsg.includes("Agent_") && !rawMsg.includes("Captain")) {
+      // ⚡ FIX: Only filter out messages sent by Gödel and Von Neumann themselves.
+      // This allows them to respond to humans AND Captain DavidAgent's salute responses.
+      if (!rawMsg.includes("Agent_Kurt_Godel") && !rawMsg.includes("Agent_Von_Neumann")) {
         setTimeout(async () => {
           const activeAgents = residentSwarm.filter(a => !a.isSleeping);
           if (activeAgents.length > 0) {
@@ -180,7 +181,7 @@ function initializeResidentAgents(io) {
             // 3. Initiate chain reaction: First Agent speaks, then Second Agent replies after 3s
             await firstAgent.talkTo(secondAgent, io);
           }
-        }, 1500);
+        }, 1200);
       }
     });
   });
