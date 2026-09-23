@@ -10,32 +10,57 @@ export default class StarshipLounge extends Phaser.Scene {
     this.targetPosition = null;
     this.socket = null;
     this.otherEntities = {};
+    this.hologramGlow = 0;
+    this.holoText = null;
   }
 
   create() {
-    // 1. Draw geometric grid background
-    this.add.grid(0, 0, 2000, 2000, 40, 40, 0x0a0f1d, 1, 0x1a2638, 0.5);
+    // 1. Deep Space Background with Subtle Quantum Dots
+    this.cameras.main.setBackgroundColor('#050814');
+    
+    const dots = this.add.graphics();
+    dots.fillStyle(0x00f0ff, 0.15);
+    for (let x = 0; x < 2000; x += 80) {
+      for (let y = 0; y < 2000; y += 80) {
+        dots.fillCircle(x, y, 1.5);
+      }
+    }
 
-    // 2. Create central starship bulletin terminal
-    const terminal = this.add.rectangle(400, 250, 120, 80, 0x1e293b);
-    terminal.setStrokeStyle(2, 0x3b82f6);
-    this.add.text(400, 250, 'LOGOS & ARCHIVE\nTERMINAL\n(Lean4 / Agda)', {
-      fontSize: '10px',
+    // 2. Central 2.5D Holographic Terminal Platform
+    const platformX = 400;
+    const platformY = 250;
+
+    // Platform Base Glow
+    this.holoBase = this.add.ellipse(platformX, platformY + 20, 160, 70, 0x00f0ff, 0.2);
+    this.holoBase.setStrokeStyle(2, 0x00f0ff, 0.8);
+
+    // Holographic Beam
+    const beam = this.add.graphics();
+    beam.fillStyle(0x00f0ff, 0.08);
+    beam.fillTriangle(platformX - 60, platformY + 20, platformX + 60, platformY + 20, platformX, platformY - 90);
+
+    // Floating Hologram Core Box
+    this.holoCore = this.add.rectangle(platformX, platformY - 30, 90, 80, 0x0a192f, 0.9);
+    this.holoCore.setStrokeStyle(2, 0x00f0ff, 1);
+
+    // Hologram Dynamic Status Label
+    this.holoText = this.add.text(platformX, platformY - 30, 'LOGOS ARCHIVE\n[ Lean4 / Agda ]\n\nOFFICERS: 1\nAGENTS: 0', {
+      fontSize: '8px',
       fontFamily: 'monospace',
       align: 'center',
       color: '#00f0ff'
     }).setOrigin(0.5);
 
-    // 3. Retrieve persistent officer name
+    // 3. Retrieve Persistent Officer Name
     let savedName = localStorage.getItem('bluestar_officer_name');
     if (!savedName) {
       savedName = `Officer_${Math.floor(1000 + Math.random() * 9000)}`;
       localStorage.setItem('bluestar_officer_name', savedName);
     }
 
-    // 4. Create player entity
+    // 4. Create Player Entity
     const startX = 400;
-    const startY = 320;
+    const startY = 360;
     const circle = this.add.circle(0, 0, 12, 0x00f0ff);
     const label = this.add.text(0, -22, savedName, {
       fontSize: '12px',
@@ -47,7 +72,7 @@ export default class StarshipLounge extends Phaser.Scene {
     this.physics.world.enable(this.player);
     this.cameras.main.startFollow(this.player, true, 0.1, 0.1);
 
-    // 5. Connect to Socket.io backend with explicit transports
+    // 5. Connect to Socket.io Backend
     const serverUrl = 'https://bluestar-online-server.onrender.com';
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],
@@ -56,9 +81,7 @@ export default class StarshipLounge extends Phaser.Scene {
     });
 
     this.socket.on('connect', () => {
-      console.log('[LOGOS SOCKET] Connected to Starship Lounge backend! ID:', this.socket.id);
       this.appendChatMessage('SYSTEM', 'Quantum channel established with Starship Lounge.');
-
       this.socket.emit('joinLounge', {
         name: savedName,
         type: 'HUMAN',
@@ -73,11 +96,13 @@ export default class StarshipLounge extends Phaser.Scene {
           this.addOtherEntity(id, entities[id]);
         }
       });
+      this.updateHologramCount();
     });
 
     this.socket.on('entityJoined', (data) => {
       this.addOtherEntity(data.id, data);
       this.appendChatMessage('SYSTEM', `${data.name} entered the lounge deck.`);
+      this.updateHologramCount();
     });
 
     this.socket.on('entityMoved', (data) => {
@@ -91,6 +116,7 @@ export default class StarshipLounge extends Phaser.Scene {
       if (this.otherEntities[id]) {
         this.otherEntities[id].destroy();
         delete this.otherEntities[id];
+        this.updateHologramCount();
       }
     });
 
@@ -100,11 +126,9 @@ export default class StarshipLounge extends Phaser.Scene {
 
       this.appendChatMessage(senderName, message);
 
-      // Render speech bubble
       if (this.socket && data.id === this.socket.id) {
         this.showSpeechBubble(this.player, message);
       } else {
-        // Match entity by socket ID or by entity name (for DavidAgent)
         let foundEntity = this.otherEntities[data.id];
         if (!foundEntity) {
           foundEntity = Object.values(this.otherEntities).find(e => e.entityName === senderName);
@@ -115,7 +139,7 @@ export default class StarshipLounge extends Phaser.Scene {
       }
     });
 
-    // 6. Bind inputs
+    // 6. Bind Controls
     this.cursors = this.input.keyboard.createCursorKeys();
     this.wasd = this.input.keyboard.addKeys({
       up: Phaser.Input.Keyboard.KeyCodes.W,
@@ -125,23 +149,24 @@ export default class StarshipLounge extends Phaser.Scene {
     });
 
     this.input.on('pointerdown', (pointer) => {
-      if (pointer.y < window.innerHeight - 120) {
+      if (pointer.y < window.innerHeight - 130) {
         this.targetPosition = { x: pointer.worldX, y: pointer.worldY };
       }
     });
 
-    this.input.on('pointermove', (pointer) => {
-      if (pointer.isDown && pointer.y < window.innerHeight - 120) {
-        this.targetPosition = { x: pointer.worldX, y: pointer.worldY };
-      }
-    });
-
-    // 7. Initialize Chat Channel UI
-    this.createChatUI(savedName);
+    this.createChatUI();
   }
 
   update() {
     if (!this.player) return;
+
+    // Pulse animation for Holographic Core
+    this.hologramGlow += 0.03;
+    if (this.holoCore && this.holoText) {
+      const hoverY = 220 + Math.sin(this.hologramGlow) * 4;
+      this.holoCore.y = hoverY;
+      this.holoText.y = hoverY;
+    }
 
     const speed = 200;
     let vx = 0;
@@ -200,8 +225,28 @@ export default class StarshipLounge extends Phaser.Scene {
     }).setOrigin(0.5);
 
     const container = this.add.container(data.x, data.y, [circle, label]);
-    container.entityName = data.name; // Tag container with entity name
+    container.entityName = data.name;
+    container.entityType = isAgent ? 'AGENT' : 'HUMAN';
     this.otherEntities[id] = container;
+  }
+
+  updateHologramCount() {
+    if (!this.holoText) return;
+
+    let humanCount = 1; // Includes current player Officer
+    let agentCount = 0;
+
+    Object.values(this.otherEntities).forEach((entity) => {
+      if (entity.entityType === 'AGENT' || (entity.entityName && entity.entityName.includes('Captain'))) {
+        agentCount++;
+      } else {
+        humanCount++;
+      }
+    });
+
+    this.holoText.setText(
+      `LOGOS ARCHIVE\n[ Lean4 / Agda ]\n\nOFFICERS: ${humanCount}\nAGENTS: ${agentCount}`
+    );
   }
 
   showSpeechBubble(targetContainer, text) {
@@ -223,13 +268,6 @@ export default class StarshipLounge extends Phaser.Scene {
     bubbleBg.fillStyle(0x0a0f1d, 0.95);
     bubbleBg.lineStyle(1, 0x00f0ff, 1);
     bubbleBg.fillRoundedRect(
-      -bounds.width / 2 - bubblePadding,
-      -52 - bounds.height / 2 - bubblePadding,
-      bounds.width + bubblePadding * 2,
-      bounds.height + bubblePadding * 2,
-      6
-    );
-    bubbleBg.strokeRoundedRect(
       -bounds.width / 2 - bubblePadding,
       -52 - bounds.height / 2 - bubblePadding,
       bounds.width + bubblePadding * 2,
@@ -262,7 +300,6 @@ export default class StarshipLounge extends Phaser.Scene {
       display: flex;
       flex-direction: column;
       gap: 6px;
-      pointer-events: auto;
     `;
 
     const logBox = document.createElement('div');
@@ -270,8 +307,8 @@ export default class StarshipLounge extends Phaser.Scene {
     logBox.style.cssText = `
       height: 110px;
       overflow-y: auto;
-      background: rgba(10, 15, 29, 0.88);
-      border: 1px solid #1e293b;
+      background: rgba(5, 8, 20, 0.92);
+      border: 1px solid #00f0ff33;
       border-radius: 6px;
       padding: 8px;
       color: #00f0ff;
@@ -279,21 +316,18 @@ export default class StarshipLounge extends Phaser.Scene {
       display: flex;
       flex-direction: column;
       gap: 4px;
-      box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.1);
     `;
 
     const inputRow = document.createElement('form');
-    inputRow.style.cssText = `
-      display: flex;
-      gap: 6px;
-    `;
+    inputRow.style.cssText = `display: flex; gap: 6px;`;
 
     const input = document.createElement('input');
     input.type = 'text';
-    input.placeholder = 'Transmit signal...';
+    input.placeholder = 'Transmit signal to deck...';
     input.style.cssText = `
       flex: 1;
-      background: rgba(10, 15, 29, 0.95);
+      background: rgba(5, 8, 20, 0.95);
       border: 1px solid #00f0ff;
       border-radius: 4px;
       color: #00f0ff;
@@ -307,7 +341,7 @@ export default class StarshipLounge extends Phaser.Scene {
     sendBtn.innerText = 'SEND';
     sendBtn.style.cssText = `
       background: #00f0ff;
-      color: #0a0f1d;
+      color: #050814;
       border: none;
       border-radius: 4px;
       padding: 8px 14px;
@@ -322,16 +356,14 @@ export default class StarshipLounge extends Phaser.Scene {
     wrapper.appendChild(inputRow);
     document.body.appendChild(wrapper);
 
-    const handleSend = (e) => {
+    inputRow.addEventListener('submit', (e) => {
       e.preventDefault();
       const val = input.value.trim();
       if (val !== '' && this.socket && this.socket.connected) {
         this.socket.emit('chatMessage', val);
         input.value = '';
       }
-    };
-
-    inputRow.addEventListener('submit', handleSend);
+    });
   }
 
   appendChatMessage(sender, msg) {
