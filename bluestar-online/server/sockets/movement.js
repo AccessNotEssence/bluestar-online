@@ -58,7 +58,7 @@ function initSockets(server) {
       }
     });
 
-    // ⚡ CHAT HUB WITH AGENT TRIGGER
+    // ⚡ CHAT HUB WITH SAFE AGENT TRIGGER
     socket.on('chatMessage', (msg) => {
       const entity = entities[socket.id];
       const senderName = entity ? entity.name : 'Unknown';
@@ -76,25 +76,33 @@ function initSockets(server) {
         message: rawMsg
       });
 
-      // ⚡ Dynamically trigger Agents without module level circular require
+      // Exclude Agent self-messages to prevent infinite speech loops
       const isAgentSelf = senderName.startsWith('Agent_Kurt_Godel') || senderName.startsWith('Agent_Von_Neumann');
 
       if (!isAgentSelf) {
         setTimeout(async () => {
           try {
-            const { residentSwarm } = require('../agents/residentAgents.js');
-            if (residentSwarm && residentSwarm.length > 0) {
-              const activeAgents = residentSwarm.filter(a => !a.isSleeping);
+            // Retrieve swarm from global reference, with require fallback
+            let swarm = global.residentSwarmRef;
+            if (!swarm || swarm.length === 0) {
+              const agentModule = require('../agents/residentAgents.js');
+              swarm = agentModule.residentSwarm;
+            }
+
+            if (swarm && swarm.length > 0) {
+              const activeAgents = swarm.filter(a => !a.isSleeping);
               if (activeAgents.length > 0) {
+                // Pick initial responder randomly
                 const firstIndex = Math.floor(Math.random() * activeAgents.length);
                 const firstAgent = activeAgents[firstIndex];
                 const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
 
+                // Initiate chain reaction
                 await firstAgent.talkTo(secondAgent, io, loungeHistory);
               }
             }
           } catch (err) {
-            console.error('[Agent Trigger Error]:', err.message);
+            console.error('[Agent Trigger Error Handled]:', err.message);
           }
         }, 1200);
       }
