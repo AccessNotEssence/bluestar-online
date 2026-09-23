@@ -20,11 +20,10 @@ class ResidentAgent {
     this.isSleeping = false;
   }
 
-  // Live Tumblr Retrieval & High-Logic Speech Generation
+  // Dynamic Tumblr Retrieval & Logic Speech Generation
   async generateLLMSpeech() {
     let tumblrLog = "Access_Not_Essence: Existence precedes essence.";
     try {
-      // ⚡ Dynamically fetches your latest Tumblr log on every speech attempt!
       tumblrLog = await fetchLatestTumblrLog();
     } catch (e) {
       console.error(`[Tumblr Fetch Warning] ${e.message}`);
@@ -70,7 +69,7 @@ class ResidentAgent {
     }
   }
 
-  // ⚡ Dynamic chain reaction between Gödel and Von Neumann
+  // Dynamic chain reaction between Gödel and Von Neumann
   async talkTo(targetAgent, io) {
     try {
       const speech = await this.generateLLMSpeech();
@@ -117,32 +116,8 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
-  // ⚡ CHATBOX INTERACTION TRIGGER (NO MORE BORING TIMERS!)
-  io.on("connection", (socket) => {
-    socket.on("chatMessage", async (msg) => {
-      const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
-      
-      // Ignore only self-messages from Gödel and Von Neumann to prevent self-infinite loops
-      const isSelf = rawMsg.includes("Agent_Kurt_Godel") || rawMsg.includes("Agent_Von_Neumann");
-      
-      if (!isSelf) {
-        setTimeout(async () => {
-          const activeAgents = residentSwarm.filter(a => !a.isSleeping);
-          if (activeAgents.length > 0) {
-            // 1. Randomly select the first responder (Gödel or Von Neumann)
-            const firstIndex = Math.floor(Math.random() * activeAgents.length);
-            const firstAgent = activeAgents[firstIndex];
-            const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
-
-            // 2. Trigger reactive dialogue chain!
-            await firstAgent.talkTo(secondAgent, io);
-          }
-        }, 1200);
-      }
-    });
-  });
-
-  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active and listening for signals.");
+  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) initialized into phase space.");
 }
 
-module.exports = { initializeResidentAgents };
+// ⚡ CRITICAL: Export residentSwarm so movement.js can access the agents dynamically
+module.exports = { initializeResidentAgents, residentSwarm };
