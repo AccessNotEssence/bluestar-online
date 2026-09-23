@@ -16,6 +16,9 @@ const entities = {
   }
 };
 
+// Global Lounge Chat Memory (Keeps last 10 messages)
+const loungeHistory = [];
+
 function initSockets(server) {
   const { Server } = require('socket.io');
   const io = new Server(server, {
@@ -28,10 +31,8 @@ function initSockets(server) {
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
 
-    // 1. Send all existing entities (including Godel & Neumann) to newly connected client
     socket.emit('currentEntities', entities);
 
-    // 2. Handle lounge connection
     socket.on('joinLounge', (data) => {
       entities[socket.id] = {
         id: socket.id,
@@ -42,12 +43,9 @@ function initSockets(server) {
       };
 
       console.log(`[ENTITY JOINED] ${entities[socket.id].name} (${entities[socket.id].type})`);
-
-      // Broadcast to ALL clients that a new entity joined
       io.emit('entityJoined', entities[socket.id]);
     });
 
-    // 3. Handle human/agent positional movement
     socket.on('move', (data) => {
       if (entities[socket.id]) {
         entities[socket.id].x = data.x;
@@ -61,12 +59,16 @@ function initSockets(server) {
       }
     });
 
-    // 4. Handle lounge chat messages
+    // Handle chat messages & RECORD into global loungeHistory
     socket.on('chatMessage', (msg) => {
       const entity = entities[socket.id];
       const senderName = entity ? entity.name : 'Unknown';
 
       console.log(`[CHAT] [${senderName}]: ${msg}`);
+
+      // Push into history buffer
+      loungeHistory.push(`${senderName}: ${msg}`);
+      if (loungeHistory.length > 10) loungeHistory.shift();
 
       io.emit('chatMessage', {
         id: socket.id,
@@ -75,7 +77,6 @@ function initSockets(server) {
       });
     });
 
-    // 5. Handle disconnection
     socket.on('disconnect', () => {
       console.log(`[SOCKET DISCONNECTED] Client disconnected: ${socket.id}`);
       if (entities[socket.id]) {
@@ -88,6 +89,6 @@ function initSockets(server) {
   return io;
 }
 
-// Correctly export both the Socket initializer and the shared entities reference
 module.exports = initSockets;
 module.exports.entities = entities;
+module.exports.loungeHistory = loungeHistory;
