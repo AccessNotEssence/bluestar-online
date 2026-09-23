@@ -25,17 +25,17 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ONLINE', vessel: 'BlueStar-01' });
 });
 
-// Initialize Socket.io spatial engine and capture the io instance
+// 1. Initialize Socket.io spatial engine
 const io = initSockets(server);
 
-// Initialize Resident Agent Swarm (Kurt Gödel & Von Neumann) via dynamic ES Module import
-import('./agents/residentAgents.js')
-    .then(({ initializeResidentAgents }) => {
-        initializeResidentAgents(io);
-    })
-    .catch((err) => {
-        console.error('[Resident Agents Engine Error]: Failed to initialize swarm:', err);
-    });
+// 2. Initialize Resident Agent Swarm (Kurt Gödel & Von Neumann) using standard CommonJS require
+try {
+    const { initializeResidentAgents } = require('./agents/residentAgents');
+    initializeResidentAgents(io);
+    console.log('[Resident Swarm] Engine successfully attached to Socket.io.');
+} catch (err) {
+    console.error('[Resident Agents Engine Error]: Failed to initialize swarm:', err);
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
