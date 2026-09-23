@@ -12,10 +12,10 @@ module.exports = function(server) {
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
 
-    // 1. Send existing entities to newly connected client
+    // 1. Send all existing entities (including resident agents and humans) to newly connected client
     socket.emit('currentEntities', entities);
 
-    // 2. Handle join lounge
+    // 2. Handle lounge connection
     socket.on('joinLounge', (data) => {
       entities[socket.id] = {
         id: socket.id,
@@ -27,11 +27,11 @@ module.exports = function(server) {
 
       console.log(`[ENTITY JOINED] ${entities[socket.id].name} (${entities[socket.id].type})`);
 
-      // Broadcast to ALL clients (including sender) that a new entity joined
+      // Broadcast to ALL clients that a new entity joined
       io.emit('entityJoined', entities[socket.id]);
     });
 
-    // 3. Handle movement
+    // 3. Handle human/agent positional movement
     socket.on('move', (data) => {
       if (entities[socket.id]) {
         entities[socket.id].x = data.x;
@@ -46,7 +46,7 @@ module.exports = function(server) {
       }
     });
 
-    // 4. Handle chat messages (CRITICAL FIX: Broadcast back to everyone!)
+    // 4. Handle lounge chat messages
     socket.on('chatMessage', (msg) => {
       const entity = entities[socket.id];
       const senderName = entity ? entity.name : 'Unknown';
@@ -70,4 +70,7 @@ module.exports = function(server) {
       }
     });
   });
+
+  // CRITICAL: Return the io instance so server/index.js can pass it to residentAgents.js
+  return io;
 };
