@@ -1,10 +1,9 @@
 import axios from "axios";
 
-// Global Swarm Reference for Inter-Agent Communication
 let residentSwarm = [];
 
 class ResidentAgent {
-  constructor(id, name, role) {
+  constructor(id, name, role, startX, startY) {
     this.id = id;
     this.name = name;
     this.role = role;
@@ -17,7 +16,7 @@ class ResidentAgent {
     };
 
     // Phase Space Coordinates
-    this.position = { x: 350 + Math.floor(Math.random() * 100), y: 350 + Math.floor(Math.random() * 100) };
+    this.position = { x: startX, y: startY };
     this.isSleeping = false;
   }
 
@@ -33,13 +32,13 @@ class ResidentAgent {
     ];
 
     const chosenMessage = dialogues[Math.floor(Math.random() * dialogues.length)];
-    this.broadcastState(io, `[Talking to ${targetAgent.name}]: ${chosenMessage}`);
+    this.broadcastState(io, chosenMessage);
 
     // Trigger target agent reply after 2 seconds
     setTimeout(() => {
       if (!targetAgent.isSleeping) {
         targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 20);
-        targetAgent.broadcastState(io, `[Reply to ${this.name}]: "Acknowledged, ${this.name}. Formal verification constraints remain intact."`);
+        targetAgent.broadcastState(io, `Acknowledged, ${this.name}. Formal verification constraints remain intact.`);
       }
     }, 2000);
   }
@@ -51,7 +50,7 @@ class ResidentAgent {
       this.drives.energy = Math.min(100, this.drives.energy + 25);
       if (this.drives.energy >= 95) {
         this.isSleeping = false;
-        this.broadcastState(io, `${this.name} initialized from phase-space hibernation.`);
+        this.broadcastState(io, `Initialized from phase-space hibernation.`);
       }
       return;
     }
@@ -66,7 +65,7 @@ class ResidentAgent {
     // Rest Condition
     if (this.drives.energy < 20) {
       this.isSleeping = true;
-      this.broadcastState(io, `${this.name} energy depleted. Entering hibernation state.`);
+      this.broadcastState(io, `Energy depleted. Entering hibernation state.`);
       return;
     }
 
@@ -86,9 +85,9 @@ class ResidentAgent {
       const action = Math.random() > 0.5 ? "readTumblr" : "verifyLean4";
 
       if (action === "readTumblr") {
-        this.broadcastState(io, `${this.name} fetching Captain's Tumblr logs (Access_Not_Essence) for topological analysis.`);
+        this.broadcastState(io, `Fetching Captain's Tumblr logs (Access_Not_Essence) for topological analysis.`);
       } else {
-        this.broadcastState(io, `${this.name} executing Lean 4 formal verification pass on category theory axioms.`);
+        this.broadcastState(io, `Executing Lean 4 formal verification pass on category theory axioms.`);
       }
       return;
     }
@@ -97,7 +96,13 @@ class ResidentAgent {
     this.position.x += Math.floor(Math.random() * 60) - 30;
     this.position.y += Math.floor(Math.random() * 60) - 30;
     
-    // Broadcast movement to frontend
+    // Broadcast movement to frontend (Compatible with entityMoved)
+    io.emit("entityMoved", {
+      id: this.id,
+      x: this.position.x,
+      y: this.position.y
+    });
+
     io.emit("agentMoved", {
       id: this.id,
       name: this.name,
@@ -108,11 +113,19 @@ class ResidentAgent {
 
   broadcastState(io, message) {
     console.log(`[ResidentAgent:${this.name}] ${message}`);
+    
+    // Broadcast both agentBroadcast and standard chatMessage for Phaser frontend display
     io.emit("agentBroadcast", {
       agentId: this.id,
       agentName: this.name,
       message: message,
       timestamp: new Date().toISOString()
+    });
+
+    io.emit("chatMessage", {
+      id: this.id,
+      name: this.name,
+      message: message
     });
   }
 }
@@ -123,12 +136,16 @@ export function initializeResidentAgents(io) {
     new ResidentAgent(
       "bot_godel_01", 
       "Agent_Kurt_Godel", 
-      "Incompleteness & Formal Proof Specialist"
+      "Incompleteness & Formal Proof Specialist",
+      380,
+      280
     ),
     new ResidentAgent(
       "bot_neumann_02", 
       "Agent_Von_Neumann", 
-      "Quantum Logic & Game Theory Architect"
+      "Quantum Logic & Game Theory Architect",
+      450,
+      340
     )
   ];
 
