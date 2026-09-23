@@ -8,18 +8,12 @@ class ResidentAgent {
     this.id = id;
     this.name = name;
     this.role = role;
-    
-    this.drives = {
-      energy: 95,
-      curiosity: 80,
-      social: 90
-    };
-
+    this.drives = { energy: 95, curiosity: 80, social: 90 };
     this.position = { x: startX, y: startY };
     this.isSleeping = false;
   }
 
-  // Dynamic Tumblr Retrieval & High-Logic Speech Generation
+  // Live Tumblr Retrieval & High-Logic Speech Generation
   async generateLLMSpeech(loungeHistory = []) {
     let tumblrLog = "Access_Not_Essence: Existence precedes essence.";
     try {
@@ -30,9 +24,10 @@ class ResidentAgent {
 
     const recentChat = (loungeHistory && loungeHistory.length > 0) ? loungeHistory.join("\n") : "No recent chat.";
 
+    // Fallback dialogue incorporating live Tumblr archive
     const fallbacks = [
       `"Analyzing Captain's Tumblr log: '${tumblrLog.slice(0, 35)}...' Phase space topology verified."`,
-      `"Von Neumann, observe the current lounge entropy. Parameters match the latest Access_Not_Essence archive."`,
+      `"Von Neumann, observe the current lounge entropy. Parameters match the Access_Not_Essence archive."`,
       `"Signal received on deck. Access_Not_Essence archive synchronized with Lean 4 kernel."`,
       `"Calculating quantum logic spectrum. Log entry '${tumblrLog.slice(0, 25)}...' confirmed."`
     ];
@@ -67,6 +62,7 @@ class ResidentAgent {
     }
   }
 
+  // Reactive dialogue chain execution
   async talkTo(targetAgent, io, loungeHistory) {
     try {
       const speech = await this.generateLLMSpeech(loungeHistory);
@@ -90,6 +86,7 @@ class ResidentAgent {
   broadcastState(io, message) {
     console.log(`[ResidentAgent:${this.name}] ${message}`);
     
+    // Broadcast via agentBroadcast
     io.emit("agentBroadcast", {
       agentId: this.id,
       agentName: this.name,
@@ -97,6 +94,7 @@ class ResidentAgent {
       timestamp: new Date().toISOString()
     });
 
+    // Dual-broadcast via chatMessage for UI capture
     io.emit("chatMessage", {
       id: this.id,
       name: this.name,
@@ -110,6 +108,9 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_godel_01", "Agent_Kurt_Godel", "Incompleteness & Formal Proof Specialist", 380, 280),
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
+
+  // Global reference assignment to prevent cyclic require deadlocks
+  global.residentSwarmRef = residentSwarm;
 
   console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
 }
