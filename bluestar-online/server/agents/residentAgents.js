@@ -1,6 +1,6 @@
-import axios from "axios";
-import { fetchLatestTumblrLog } from "../utils/tumblrFetcher.js";
-import { loungeHistory } from "../sockets/movement.js";
+const axios = require("axios");
+const { fetchLatestTumblrLog } = require("../utils/tumblrFetcher.js");
+const { loungeHistory } = require("../sockets/movement.js");
 
 let residentSwarm = [];
 
@@ -10,17 +10,18 @@ class ResidentAgent {
     this.name = name;
     this.role = role;
     
+    // Internal Drives (0 - 100)
     this.drives = {
       energy: 95,
       curiosity: 60,
-      social: 85
+      social: 85 // High initial social drive ensures instant speech
     };
 
     this.position = { x: startX, y: startY };
     this.isSleeping = false;
   }
 
-  // LLM Autonomous Speech Generation (Token Prediction based on Tumblr & Lounge Context)
+  // Autonomous Speech Generation
   async generateLLMSpeech() {
     try {
       const tumblrLog = await fetchLatestTumblrLog();
@@ -38,15 +39,15 @@ ${recentChat}
 Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize insights from the Tumblr observation log and current lounge chat topic. Maintain high-level theoretical mathematical/philosophical wit.
 `;
 
-      // Call LLM API (Set process.env.LLM_API_KEY and process.env.LLM_ENDPOINT in Render Environment)
       const apiKey = process.env.LLM_API_KEY;
       const endpoint = process.env.LLM_ENDPOINT || "https://api.openai.com/v1/chat/completions";
 
       if (!apiKey) {
-        // Fallback if API key is not yet set
+        // Instant Fallback Dialogues
         const fallbacks = [
-          `"Analyzing Captain's Tumblr log: ${tumblrLog.slice(0, 60)}... The phase space topology aligns with our Lean 4 proof."`,
-          `"Integrating lounge topics with Access_Not_Essence archives. Kurt, notice the operator spectrum here?"`
+          `"Analyzing Captain's Tumblr log: ${tumblrLog.slice(0, 50)}... The phase space topology aligns with our Lean 4 proof."`,
+          `"Integrating lounge topics with Access_Not_Essence archives. Kurt, notice the operator spectrum here?"`,
+          `"Officer Officer_1311 just hailed us in the lounge deck. Quantum channel parameters remain optimal."`
         ];
         return fallbacks[Math.floor(Math.random() * fallbacks.length)];
       }
@@ -72,7 +73,6 @@ Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize in
   async talkTo(targetAgent, io) {
     this.drives.social -= 50;
 
-    // Generate autonomous speech via LLM
     const speech = await this.generateLLMSpeech();
     this.broadcastState(io, speech);
 
@@ -85,6 +85,7 @@ Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize in
     }, 2500);
   }
 
+  // Heartbeat Tick Engine
   async heartbeatTick(io) {
     if (this.isSleeping) {
       this.drives.energy = Math.min(100, this.drives.energy + 25);
@@ -114,6 +115,7 @@ Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize in
       }
     }
 
+    // Phase Space Patrol
     this.position.x += Math.floor(Math.random() * 60) - 30;
     this.position.y += Math.floor(Math.random() * 60) - 30;
     
@@ -139,15 +141,18 @@ Task: Respond concisely (max 25 words) in English as ${this.name}. Synthesize in
   }
 }
 
-export function initializeResidentAgents(io) {
+function initializeResidentAgents(io) {
   residentSwarm = [
     new ResidentAgent("bot_godel_01", "Agent_Kurt_Godel", "Incompleteness & Formal Proof Specialist", 380, 280),
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
 
+  // Run Heartbeat Loop every 10 seconds
   setInterval(() => {
     residentSwarm.forEach(agent => agent.heartbeatTick(io));
   }, 10000);
 
-  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann with Tumblr LLM Memory) active.");
+  console.log("[Starship Lounge] Resident Swarm (Kurt Gödel & Von Neumann) active.");
 }
+
+module.exports = { initializeResidentAgents };
