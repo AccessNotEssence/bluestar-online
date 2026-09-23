@@ -27,6 +27,16 @@ function initSockets(server) {
     }
   });
 
+  // ⚡ 關鍵修復：確保 Resident Swarm 在 Socket 啟動時自動實體化，絕不留空！
+  try {
+    const { initializeResidentAgents, residentSwarm } = require('../agents/residentAgents.js');
+    if (!global.residentSwarmRef || global.residentSwarmRef.length === 0) {
+      initializeResidentAgents(io);
+    }
+  } catch (initErr) {
+    console.error('[Swarm Auto-Init Error]:', initErr.message);
+  }
+
   io.on('connection', (socket) => {
     console.log(`[SOCKET CONNECTED] New client connected: ${socket.id}`);
 
@@ -58,7 +68,7 @@ function initSockets(server) {
       }
     });
 
-    // ⚡ CHAT HUB HANDLER WITH COMPATIBILITY FOR MULTIPLE EVENT NAMES
+    // ⚡ REACTIVE CHAT HUB WITH AUTO-SWARM RECOVERY
     const processChatMessage = (msg) => {
       const entity = entities[socket.id];
       let senderName = entity ? entity.name : 'Officer_1311';
@@ -74,14 +84,14 @@ function initSockets(server) {
       loungeHistory.push(`${senderName}: ${rawMsg}`);
       if (loungeHistory.length > 10) loungeHistory.shift();
 
-      // Dual broadcast
+      // Dual broadcast for all UI components
       io.emit('chatMessage', {
         id: socket.id,
         name: senderName,
         message: rawMsg
       });
 
-      // Exclude Agent self-messages to prevent infinite speech loops
+      // Exclude Agent self-messages
       const isAgentSelf = senderName.includes('Agent_Kurt_Godel') || senderName.includes('Agent_Von_Neumann');
 
       if (!isAgentSelf) {
@@ -110,7 +120,6 @@ function initSockets(server) {
       }
     };
 
-    // Listen to both event names to ensure compatibility
     socket.on('chatMessage', processChatMessage);
     socket.on('sendMessage', processChatMessage);
 
