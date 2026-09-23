@@ -70,23 +70,25 @@ class ResidentAgent {
     }
   }
 
+  // ⚡ Initiates conversation chain with a target agent
   async talkTo(targetAgent, io) {
     try {
       this.drives.social = Math.max(0, this.drives.social - 40);
       const speech = await this.generateLLMSpeech();
       this.broadcastState(io, speech);
 
-      setTimeout(async () => {
-        try {
-          if (!targetAgent.isSleeping) {
+      // Trigger the second agent's reply after a 3-second delay
+      if (targetAgent && !targetAgent.isSleeping) {
+        setTimeout(async () => {
+          try {
             targetAgent.drives.social = Math.max(0, targetAgent.drives.social - 30);
             const reply = await targetAgent.generateLLMSpeech();
             targetAgent.broadcastState(io, reply);
+          } catch (innerErr) {
+            console.error(`[Reply Error]: ${innerErr.message}`);
           }
-        } catch (innerErr) {
-          console.error(`[Reply Error]: ${innerErr.message}`);
-        }
-      }, 3000);
+        }, 3000);
+      }
     } catch (err) {
       console.error(`[TalkTo Error]: ${err.message}`);
     }
@@ -157,6 +159,31 @@ function initializeResidentAgents(io) {
     new ResidentAgent("bot_godel_01", "Agent_Kurt_Godel", "Incompleteness & Formal Proof Specialist", 380, 280),
     new ResidentAgent("bot_neumann_02", "Agent_Von_Neumann", "Quantum Logic & Game Theory Architect", 450, 340)
   ];
+
+  // ⚡ LISTEN TO CHAT & TRIGGER RANDOM DYNAMIC DUO CHAIN
+  io.on("connection", (socket) => {
+    socket.on("chatMessage", async (msg) => {
+      const rawMsg = typeof msg === 'string' ? msg : (msg.message || '');
+      
+      // Ignore messages sent by agents or captain to prevent endless loops
+      if (!rawMsg.includes("Agent_") && !rawMsg.includes("Captain")) {
+        setTimeout(async () => {
+          const activeAgents = residentSwarm.filter(a => !a.isSleeping);
+          if (activeAgents.length > 0) {
+            // 1. Randomly pick first speaker
+            const firstIndex = Math.floor(Math.random() * activeAgents.length);
+            const firstAgent = activeAgents[firstIndex];
+
+            // 2. Determine second speaker to reply (if available)
+            const secondAgent = activeAgents.find(a => a.id !== firstAgent.id);
+
+            // 3. Initiate chain reaction: First Agent speaks, then Second Agent replies after 3s
+            await firstAgent.talkTo(secondAgent, io);
+          }
+        }, 1500);
+      }
+    });
+  });
 
   // Immediate initial greeting on server start/reboot
   setTimeout(() => {
